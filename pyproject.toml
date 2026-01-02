@@ -1,0 +1,18 @@
+[project]
+name = "es-query-gen"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "rajat.goyal", email = "goyal.rajat15@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.13.2",
+    "elasticsearch[async]>=9.2.1",
+    "pydantic>=2.12.5",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
