@@ -1,0 +1,12 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.1.0  # Replace with the specific version you want to lock
+    hooks:
+      - id: black
+        # Optional: Set language version if specific python version is needed
+        language_version: python3
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]

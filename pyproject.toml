@@ -11,8 +11,18 @@ dependencies = [
     "aiohttp>=3.13.2",
     "elasticsearch[async]>=9.2.1",
     "pydantic>=2.12.5",
+    "python-dateutil>=2.9.0.post0",
 ]
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.5.1",
+]
+
+
+[tool.black]
+line-length = 120
