@@ -43,6 +43,58 @@ qb._add_filter(cfg.searchFilters)
 print(qb.build())
 ```
 
+Sample config:
+```python
+{
+    "searchFilters": {
+        "equals": [
+            {
+                "operator": "Equals",
+                "field": "empi",
+                "value": "123456789"
+            },
+            {
+                "operator": "Equals",
+                "field": "status",
+                "value": "active"
+            }
+        ],
+        "notEquals": [
+            {
+                "operator": "Equals",
+                "field": "empi",
+                "value": "123456789"
+            },
+            {
+                "operator": "Equals",
+                "field": "status",
+                "value": "active"
+            }
+        ],
+        "range": [
+            {
+                "operator": "Range",
+                "field": "age",
+                "gte": 30,
+                "lte": 40
+            }
+        ]
+    },
+    "existsFilters": [],
+    "sort": {
+        "field": "createdAt",
+        "order": "desc"
+    },
+    "include": [
+        "firstName",
+        "lastName",
+        "age",
+        "createdAt"
+    ],
+    "size": 10
+}
+```
+
 Notes
 - `QueryBuilder._add_filter` expects a list of model instances and uses a `match` statement; ensure your environment runs Python 3.10 or newer.
 - The library focuses on creating the query dictionary; you can extend `QueryBuilder` to add clauses like `must`, `should`, `filter`, or to produce JSON for Elasticsearch.
@@ -50,6 +102,4 @@ Notes
 Contributing
 - Pull requests welcome. Keep changes small and include tests for logic changes.
 
-License
-- MIT
 
