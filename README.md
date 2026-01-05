@@ -71,12 +71,12 @@ Sample config:
                 "value": "active"
             }
         ],
-        "range": [
+        "rangeFilters": [
             {
-                "operator": "Range",
+                "operator": "range",
                 "field": "age",
-                "gte": 30,
-                "lte": 40
+                "gt": 30,
+                "lt": 40
             }
         ]
     },
