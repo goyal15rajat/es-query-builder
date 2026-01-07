@@ -42,7 +42,7 @@ class QueryBuilder:
         if must_not_list:
             self.query["query"]["bool"]["must_not"] = must_not_list
 
-    def _range_filter(self, range_filter: RangeFilter):
+    def _range_filter(self, range_filter: List[RangeFilter]):
         """Add range filters to the query.
 
         Builds range queries supporting gte, gt, lte, lt operators for both
@@ -144,7 +144,7 @@ class QueryBuilder:
             agg_internal_pointer = agg_internal_pointer["aggs"][agg_item.name]
             if i == l - 1:
                 agg_internal_pointer["aggs"] = {
-                    "latest_documents": {"top_hits": {"size": size, "_source": {"includes": return_fields}}}
+                    "top_hits_bucket": {"top_hits": {"size": size, "_source": {"includes": return_fields}}}
                 }
 
         self.query["aggs"] = es_aggs["aggs"]

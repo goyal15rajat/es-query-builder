@@ -101,31 +101,53 @@ class ESClientSingleton:
 
     @classmethod
     def set(cls, client: Elasticsearch) -> None:
+        """Set the default synchronous Elasticsearch client.
+
+        Args:
+            client: The Elasticsearch client instance to set as default.
+        """
         with cls._lock:
             cls._client = client
 
     @classmethod
     def get(cls) -> Optional[Elasticsearch]:
+        """Get the default synchronous Elasticsearch client.
+
+        Returns:
+            The registered Elasticsearch client or None if not set.
+        """
         with cls._lock:
             return cls._client
 
     @classmethod
     def clear(cls) -> None:
+        """Clear the default synchronous Elasticsearch client."""
         with cls._lock:
             cls._client = None
 
     @classmethod
     def set_async(cls, client: AsyncElasticsearch) -> None:
+        """Set the default asynchronous Elasticsearch client.
+
+        Args:
+            client: The AsyncElasticsearch client instance to set as default.
+        """
         with cls._lock:
             cls._async_client = client
 
     @classmethod
     def get_async(cls) -> Optional[AsyncElasticsearch]:
+        """Get the default asynchronous Elasticsearch client.
+
+        Returns:
+            The registered AsyncElasticsearch client or None if not set.
+        """
         with cls._lock:
             return cls._async_client
 
     @classmethod
     def clear_async(cls) -> None:
+        """Clear the default asynchronous Elasticsearch client."""
         with cls._lock:
             cls._async_client = None
 
@@ -141,6 +163,21 @@ class ESClientSingleton:
         verify_certs: bool = True,
         **kwargs: Any,
     ) -> Elasticsearch:
+        """Create and register a synchronous Elasticsearch client as default.
+
+        Args:
+            connection_string: Full connection string (takes precedence over other params).
+            host: Elasticsearch host (default: 'localhost').
+            port: Elasticsearch port (default: 9200).
+            scheme: Connection scheme, 'http' or 'https' (default: 'http').
+            username: Username for authentication (optional).
+            password: Password for authentication (optional).
+            verify_certs: Whether to verify SSL certificates (default: True).
+            **kwargs: Additional arguments to pass to Elasticsearch client.
+
+        Returns:
+            The created Elasticsearch client instance.
+        """
         client_kwargs: Dict[str, Any] = {"verify_certs": verify_certs}
 
         client_kwargs.update(kwargs)
@@ -171,6 +208,21 @@ class ESClientSingleton:
         verify_certs: bool = True,
         **kwargs: Any,
     ) -> AsyncElasticsearch:
+        """Create and register an asynchronous Elasticsearch client as default.
+
+        Args:
+            connection_string: Full connection string (takes precedence over other params).
+            host: Elasticsearch host (default: 'localhost').
+            port: Elasticsearch port (default: 9200).
+            scheme: Connection scheme, 'http' or 'https' (default: 'http').
+            username: Username for authentication (optional).
+            password: Password for authentication (optional).
+            verify_certs: Whether to verify SSL certificates (default: True).
+            **kwargs: Additional arguments to pass to AsyncElasticsearch client.
+
+        Returns:
+            The created AsyncElasticsearch client instance.
+        """
         client_kwargs: Dict[str, Any] = {"verify_certs": verify_certs}
 
         client_kwargs.update(kwargs)
@@ -200,7 +252,21 @@ def connect_es(
     verify_certs: bool = True,
     **kwargs: Any,
 ) -> Elasticsearch:
-    """Create and return an Elasticsearch client and register it as default."""
+    """Create and return a synchronous Elasticsearch client and register it as default.
+
+    Args:
+        connection_string: Full connection string (takes precedence over other params).
+        host: Elasticsearch host (default: 'localhost').
+        port: Elasticsearch port (default: 9200).
+        scheme: Connection scheme, 'http' or 'https' (default: 'http').
+        username: Username for authentication (optional).
+        password: Password for authentication (optional).
+        verify_certs: Whether to verify SSL certificates (default: True).
+        **kwargs: Additional arguments to pass to Elasticsearch client.
+
+    Returns:
+        The created Elasticsearch client instance.
+    """
     return ESClientSingleton.connect(
         connection_string=connection_string,
         host=host,
@@ -214,28 +280,43 @@ def connect_es(
 
 
 def set_default_es(es: Elasticsearch) -> None:
-    """Set the module-level default Elasticsearch client (singleton)."""
+    """Set the module-level default synchronous Elasticsearch client.
+
+    Args:
+        es: The Elasticsearch client instance to set as default.
+    """
     ESClientSingleton.set(es)
 
 
 def clear_default_es() -> None:
-    """Clear the module-level default Elasticsearch client (singleton)."""
+    """Clear the module-level default synchronous Elasticsearch client."""
     ESClientSingleton.clear()
 
 
 def set_default_es_async(es: AsyncElasticsearch) -> None:
-    """Set the module-level default async Elasticsearch client (singleton)."""
+    """Set the module-level default asynchronous Elasticsearch client.
+
+    Args:
+        es: The AsyncElasticsearch client instance to set as default.
+    """
     ESClientSingleton.set_async(es)
 
 
 def clear_default_es_async() -> None:
-    """Clear the module-level default async Elasticsearch client (singleton)."""
+    """Clear the module-level default asynchronous Elasticsearch client."""
     ESClientSingleton.clear_async()
 
 
 @requires_es_client
 def ping(es: Optional[Elasticsearch] = None) -> bool:
-    """Ping the Elasticsearch cluster to check connectivity."""
+    """Ping the Elasticsearch cluster to check connectivity.
+
+    Args:
+        es: Elasticsearch client (auto-injected if not provided).
+
+    Returns:
+        True if the cluster is reachable, False otherwise.
+    """
     try:
         return bool(es.ping())
     except Exception:
@@ -246,14 +327,29 @@ def ping(es: Optional[Elasticsearch] = None) -> bool:
 def get_index_schema(es: Optional[Elasticsearch] = None, index: str = "") -> Dict[str, Any]:
     """Return the mapping/schema for the given index.
 
-    Raises the client's exception if the index does not exist.
+    Args:
+        es: Elasticsearch client (auto-injected if not provided).
+        index: The name of the index to retrieve the schema for.
+
+    Returns:
+        Dictionary containing the index mapping/schema.
+
+    Raises:
+        NotFoundError: If the index does not exist.
     """
     return es.indices.get_mapping(index=index)
 
 
 @requires_es_client
 def get_es_version(es: Optional[Elasticsearch] = None) -> Optional[str]:
-    """Return the Elasticsearch version string, e.g. '7.10.2'."""
+    """Return the Elasticsearch version string.
+
+    Args:
+        es: Elasticsearch client (auto-injected if not provided).
+
+    Returns:
+        Version string (e.g., '7.10.2') or None if unavailable.
+    """
     info = es.info()
     version = info.get("version", {})
     return version.get("number")
@@ -345,7 +441,21 @@ async def connect_es_async(
     verify_certs: bool = True,
     **kwargs: Any,
 ) -> AsyncElasticsearch:
-    """Create and return an async Elasticsearch client and register it as default."""
+    """Create and return an asynchronous Elasticsearch client and register it as default.
+
+    Args:
+        connection_string: Full connection string (takes precedence over other params).
+        host: Elasticsearch host (default: 'localhost').
+        port: Elasticsearch port (default: 9200).
+        scheme: Connection scheme, 'http' or 'https' (default: 'http').
+        username: Username for authentication (optional).
+        password: Password for authentication (optional).
+        verify_certs: Whether to verify SSL certificates (default: True).
+        **kwargs: Additional arguments to pass to AsyncElasticsearch client.
+
+    Returns:
+        The created AsyncElasticsearch client instance.
+    """
     return ESClientSingleton.connect_async(
         connection_string=connection_string,
         host=host,
@@ -360,7 +470,14 @@ async def connect_es_async(
 
 @requires_es_client_async
 async def ping_async(es: Optional[AsyncElasticsearch] = None) -> bool:
-    """Ping the Elasticsearch cluster (async) to check connectivity."""
+    """Ping the Elasticsearch cluster asynchronously to check connectivity.
+
+    Args:
+        es: AsyncElasticsearch client (auto-injected if not provided).
+
+    Returns:
+        True if the cluster is reachable, False otherwise.
+    """
     try:
         return bool(await es.ping())
     except Exception:
@@ -369,16 +486,31 @@ async def ping_async(es: Optional[AsyncElasticsearch] = None) -> bool:
 
 @requires_es_client_async
 async def get_index_schema_async(es: Optional[AsyncElasticsearch] = None, index: str = "") -> Dict[str, Any]:
-    """Return the mapping/schema for the given index (async).
+    """Return the mapping/schema for the given index asynchronously.
 
-    Raises the client's exception if the index does not exist.
+    Args:
+        es: AsyncElasticsearch client (auto-injected if not provided).
+        index: The name of the index to retrieve the schema for.
+
+    Returns:
+        Dictionary containing the index mapping/schema.
+
+    Raises:
+        NotFoundError: If the index does not exist.
     """
     return await es.indices.get_mapping(index=index)
 
 
 @requires_es_client_async
 async def get_es_version_async(es: Optional[AsyncElasticsearch] = None) -> Optional[str]:
-    """Return the Elasticsearch version string (async), e.g. '7.10.2'."""
+    """Return the Elasticsearch version string asynchronously.
+
+    Args:
+        es: AsyncElasticsearch client (auto-injected if not provided).
+
+    Returns:
+        Version string (e.g., '7.10.2') or None if unavailable.
+    """
     info = await es.info()
     version = info.get("version", {})
     return version.get("number")
