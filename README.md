@@ -46,52 +46,44 @@ print(qb.build())
 Sample config:
 ```python
 {
+    "size": 200,
     "searchFilters": {
         "equals": [
             {
-                "operator": "Equals",
-                "field": "empi",
-                "value": "123456789"
-            },
-            {
-                "operator": "Equals",
-                "field": "status",
-                "value": "active"
+                "field": "age",
+                "value": "35"
             }
         ],
         "notEquals": [
             {
-                "operator": "Equals",
-                "field": "empi",
-                "value": "123456789"
+                "field": "name.keyword",
+                "value": "john miller"
             },
-            {
-                "operator": "Equals",
-                "field": "status",
-                "value": "active"
-            }
         ],
         "rangeFilters": [
             {
-                "operator": "range",
-                "field": "age",
-                "gt": 30,
-                "lt": 40
+                "field": "dob",
+                "rangeType": "date",
+                "dateFormat": "%m/%d/%Y",
+                "gte": {
+                    "month": 2,
+                    "years": -36
+                },
+                "lt": {
+                    "month": 9,
+                    "day": 10,
+                    "years": -36
+                }
             }
         ]
     },
-    "existsFilters": [],
-    "sort": {
-        "field": "createdAt",
-        "order": "desc"
-    },
-    "include": [
-        "firstName",
-        "lastName",
-        "age",
-        "createdAt"
+    "sortList": [
+        {
+            "field": "dob",
+            "order": "asc"
+        }
     ],
-    "size": 10
+    "returnFields": ["name", "dob", "phone"]
 }
 ```
 
