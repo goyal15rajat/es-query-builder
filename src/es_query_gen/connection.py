@@ -1,18 +1,15 @@
-from typing import Optional, Any, Dict
+import asyncio
 import threading
 import time
-import asyncio
 from functools import wraps
+from typing import Any, Dict, Optional
 
-from elasticsearch import Elasticsearch
-from elasticsearch import AsyncElasticsearch
-from elasticsearch.exceptions import (
-    ConnectionError as ESConnectionError,
-    TimeoutError as ESTimeoutError,
-    NotFoundError,
-    BadRequestError,
-    RequestError,
-)
+from elasticsearch import AsyncElasticsearch, Elasticsearch
+from elasticsearch.exceptions import BadRequestError
+from elasticsearch.exceptions import ConnectionError as ESConnectionError
+from elasticsearch.exceptions import ConnectionTimeout as ESTimeoutError
+from elasticsearch.exceptions import NotFoundError, RequestError
+
 
 def requires_es_client(func):
     """Decorator to ensure an Elasticsearch client is available.
@@ -29,24 +26,26 @@ def requires_es_client(func):
     Raises:
         RuntimeError: If no Elasticsearch client is available.
     """
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         # 1. Check if 'es' was passed explicitly in kwargs
-        client = kwargs.get('es')
-        
+        client = kwargs.get("es")
+
         # 2. If not, try to fetch it from the Singleton
         if client is None:
             client = ESClientSingleton.get()
-            
+
         # 3. Validation Logic (The "Guard Clause")
         if client is None:
             raise RuntimeError("Elasticsearch client not provided and no default is set")
-            
+
         # 4. Inject the valid client into the function
         # We update kwargs so the original function receives the actual client object
-        kwargs['es'] = client
-        
+        kwargs["es"] = client
+
         return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -65,23 +64,25 @@ def requires_es_client_async(func):
     Raises:
         RuntimeError: If no asynchronous Elasticsearch client is available.
     """
+
     @wraps(func)
     async def wrapper(*args, **kwargs):
         # 1. Check if 'es' was passed explicitly in kwargs
-        client = kwargs.get('es')
-        
+        client = kwargs.get("es")
+
         # 2. If not, try to fetch async client from Singleton
         if client is None:
             client = ESClientSingleton.get_async()
-            
+
         # 3. Validation Logic (The "Guard Clause")
         if client is None:
             raise RuntimeError("Async Elasticsearch client not provided and no default is set")
-            
+
         # 4. Inject the valid client into the function
-        kwargs['es'] = client
-        
+        kwargs["es"] = client
+
         return await func(*args, **kwargs)
+
     return wrapper
 
 
@@ -138,10 +139,10 @@ class ESClientSingleton:
         username: Optional[str] = None,
         password: Optional[str] = None,
         verify_certs: bool = True,
-        timeout: int = 10,
         **kwargs: Any,
     ) -> Elasticsearch:
-        client_kwargs: Dict[str, Any] = {"verify_certs": verify_certs, "timeout": timeout}
+        client_kwargs: Dict[str, Any] = {"verify_certs": verify_certs}
+
         client_kwargs.update(kwargs)
 
         if connection_string:
@@ -168,10 +169,10 @@ class ESClientSingleton:
         username: Optional[str] = None,
         password: Optional[str] = None,
         verify_certs: bool = True,
-        timeout: int = 10,
         **kwargs: Any,
     ) -> AsyncElasticsearch:
-        client_kwargs: Dict[str, Any] = {"verify_certs": verify_certs, "timeout": timeout}
+        client_kwargs: Dict[str, Any] = {"verify_certs": verify_certs}
+
         client_kwargs.update(kwargs)
 
         if connection_string:
@@ -197,7 +198,6 @@ def connect_es(
     username: Optional[str] = None,
     password: Optional[str] = None,
     verify_certs: bool = True,
-    timeout: int = 10,
     **kwargs: Any,
 ) -> Elasticsearch:
     """Create and return an Elasticsearch client and register it as default."""
@@ -209,7 +209,6 @@ def connect_es(
         username=username,
         password=password,
         verify_certs=verify_certs,
-        timeout=timeout,
         **kwargs,
     )
 
@@ -265,9 +264,8 @@ def search(
     es: Optional[Elasticsearch] = None,
     index: str = "*",
     query: Optional[Dict[str, Any]] = None,
-    size: int = 10,
     from_: int = 0,
-    timeout: str = "10s",
+    timeout: int = 10,
     max_retries: int = 3,
     retry_delay: float = 0.5,
 ) -> Dict[str, Any]:
@@ -303,8 +301,7 @@ def search(
         try:
             response = es.search(
                 index=index,
-                query=query,
-                size=size,
+                body=query,
                 from_=from_,
                 request_timeout=timeout,
             )
@@ -319,7 +316,7 @@ def search(
             last_exception = e
             if attempt < max_retries - 1:
                 # Exponential backoff: delay * (2 ^ attempt)
-                backoff = retry_delay * (2 ** attempt)
+                backoff = retry_delay * (2**attempt)
                 time.sleep(backoff)
             continue
         except RequestError as e:
@@ -346,7 +343,6 @@ async def connect_es_async(
     username: Optional[str] = None,
     password: Optional[str] = None,
     verify_certs: bool = True,
-    timeout: int = 10,
     **kwargs: Any,
 ) -> AsyncElasticsearch:
     """Create and return an async Elasticsearch client and register it as default."""
@@ -358,7 +354,6 @@ async def connect_es_async(
         username=username,
         password=password,
         verify_certs=verify_certs,
-        timeout=timeout,
         **kwargs,
     )
 
@@ -448,7 +443,7 @@ async def search_async(
             last_exception = e
             if attempt < max_retries - 1:
                 # Exponential backoff: delay * (2 ^ attempt)
-                backoff = retry_delay * (2 ** attempt)
+                backoff = retry_delay * (2**attempt)
                 await asyncio.sleep(backoff)
             continue
         except RequestError as e:

@@ -107,7 +107,7 @@ class AggregationRule(BaseModel):
     name: str
     aggType: Literal["terms"] = "terms"
     field: str
-    size: int = 10
+    size: int = Field(default=1, ge=1, le=500)
     order: Optional[Literal["asc", "desc"]]
 
 
