@@ -46,19 +46,13 @@ print(qb.build())
 Sample config:
 ```python
 {
-    "size": 200,
+    "size": 10,
     "searchFilters": {
         "equals": [
             {
                 "field": "age",
                 "value": "35"
             }
-        ],
-        "notEquals": [
-            {
-                "field": "name.keyword",
-                "value": "john miller"
-            },
         ],
         "rangeFilters": [
             {
@@ -67,12 +61,12 @@ Sample config:
                 "dateFormat": "%m/%d/%Y",
                 "gte": {
                     "month": 2,
-                    "years": -36
+                    "years": -60
                 },
                 "lt": {
                     "month": 9,
                     "day": 10,
-                    "years": -36
+                    "years": -20
                 }
             }
         ]
@@ -83,7 +77,21 @@ Sample config:
             "order": "asc"
         }
     ],
-    "returnFields": ["name", "dob", "phone"]
+    "returnFields": ["name", "dob", "phone"],
+    "aggs": [
+        {
+            "name": "address_bucket",
+            "field": "address.keyword",
+            "size": 100,
+            "order": "asc"
+        },
+        {
+            "name": "dob_bucket",
+            "field": "dob",
+            "size": 100,
+            "order": "asc"
+        }
+    ]
 }
 ```
 

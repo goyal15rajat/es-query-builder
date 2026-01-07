@@ -7,15 +7,14 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 class EqualsFilter(BaseModel):
     """
-    Represents a filter that checks for equality or inequality.
+    Represents a filter that checks for equality.
 
     Attributes:
-        operator (Literal): The operator to use, either 'Equals' or 'NotEquals'.
         field (str): The field to apply the filter on.
         value (Union[str, int, float, bool, list]): The value to compare against.
 
     Example:
-        filter = EqualsFilter(operator='Equals', field='status', value='active')
+        filter = EqualsFilter(field='status', value='active')
     """
 
     field: str
@@ -28,17 +27,24 @@ class RangeFilter(BaseModel):
 
     Attributes:
         field (str): The field to apply the filter on.
-        operator (Literal): The operator, must be 'range'.
-        min (Union[float, str, int, None]): The minimum value of the range.
-        max (Union[float, str, int, None]): The maximum value of the range.
-        rangeType (Literal): The type of range, either 'date' or 'number'.
-        dateFormat (Optional[str]): The date format string (e.g., 'YYYY-MM-DD'). Required when rangeType is 'date'.
-        includeMin (bool): Whether to include the minimum value.
-        includeMax (bool): Whether to include the maximum value.
+        rangeType (Literal['date', 'number']): The type of range, either 'date' or 'number' (default: 'number').
+        dateFormat (Optional[str]): The date format string (e.g., '%Y-%m-%d'). Required when rangeType is 'date'.
+        gt (Union[float, str, int, None, dict]): Greater than value.
+        lt (Union[float, str, int, None, dict]): Less than value.
+        gte (Union[float, str, int, None, dict]): Greater than or equal to value.
+        lte (Union[float, str, int, None, dict]): Less than or equal to value.
 
     Example:
-        filter = RangeFilter(field='age', operator='range', min=18, max=30, rangeType='number')
-        date_filter = RangeFilter(field='created_at', operator='range', min='2024-01-01', max='2024-12-31', rangeType='date', dateFormat='YYYY-MM-DD')
+        # Numeric range
+        filter = RangeFilter(field='age', gte=18, lte=30, rangeType='number')
+
+        # Date range with relative offset (dict format)
+        date_filter = RangeFilter(
+            field='created_at',
+            gte={'days': -30},
+            rangeType='date',
+            dateFormat='%Y-%m-%d'
+        )
     """
 
     # make sure keys used in validator logic are defined before the fields being validated
@@ -97,6 +103,21 @@ class sortModel(BaseModel):
 
 
 class SearchFilter(BaseModel):
+    """
+    Container for different types of search filters.
+
+    Attributes:
+        equals_filter (List[EqualsFilter]): List of equality filters (aliased as 'equals').
+        not_equals_filter (List[EqualsFilter]): List of inequality filters (aliased as 'notEquals').
+        range_filter (List[RangeFilter]): List of range filters (aliased as 'rangeFilters').
+
+    Example:
+        filters = SearchFilter(
+            equals=[EqualsFilter(field='status', value='active')],
+            notEquals=[EqualsFilter(field='deleted', value=True)],
+            rangeFilters=[RangeFilter(field='age', gte=18, lte=65)]
+        )
+    """
 
     equals_filter: List[EqualsFilter] = Field(default_factory=list, alias="equals")
     not_equals_filter: List[EqualsFilter] = Field(default_factory=list, alias="notEquals")
@@ -104,31 +125,62 @@ class SearchFilter(BaseModel):
 
 
 class AggregationRule(BaseModel):
+    """
+    Defines a single aggregation rule for grouping and analyzing data.
+
+    Attributes:
+        name (str): The name of the aggregation.
+        aggType (Literal['terms']): The type of aggregation (currently only 'terms' is supported).
+        field (str): The field to aggregate on.
+        size (int): Maximum number of aggregation buckets to return (1-500, default: 1).
+        order (Optional[Literal['asc', 'desc']]): Sort order for aggregation buckets (default: None).
+
+    Example:
+        agg = AggregationRule(
+            name='by_category',
+            aggType='terms',
+            field='category.keyword',
+            size=10,
+            order='desc'
+        )
+    """
+
     name: str
     aggType: Literal["terms"] = "terms"
     field: str
     size: int = Field(default=1, ge=1, le=500)
-    order: Optional[Literal["asc", "desc"]]
+    order: Optional[Literal["asc", "desc"]] = None
 
 
 class QueryConfig(BaseModel):
     """
-    Configuration for a query including filters and sorting.
+    Configuration for a query including filters, sorting, and aggregations.
 
     Attributes:
-        searchFilters (List[Union[EqualsFilter, RangeFilter]]): List of filters to apply to the search.
-        existsFilters (Optional[List[str]]): List of fields that must exist.
-        sort (Optional[sortModel]): Sorting configuration.
-        size (Optional[int]): Number of results to return, must be between 1 and 500.
+        searchFilters (SearchFilter): Container for equals, not_equals, and range filters.
+        existsFilters (Optional[List[str]]): List of fields that must exist in documents.
+        sortList (Optional[List[sortModel]]): List of sorting configurations.
+        size (Optional[int]): Number of results to return, must be between 1 and 500 (default: 1).
         returnFields (Optional[List[str]]): List of fields to return in the results.
+        aggs (Optional[List[AggregationRule]]): List of aggregation rules to apply.
 
     Example:
+        # Search query
         config = QueryConfig(
-            searchFilters={},
+            searchFilters=SearchFilter(
+                equals=[EqualsFilter(field='status', value='active')]
+            ),
             existsFilters=['field1', 'field2'],
-            sort=sortModel(field='created_at', order='desc'),
+            sortList=[sortModel(field='created_at', order='desc')],
             size=20,
             returnFields=['field1', 'field2']
+        )
+
+        # Aggregation query
+        agg_config = QueryConfig(
+            aggs=[AggregationRule(name='by_status', field='status.keyword', size=10)],
+            size=5,
+            returnFields=['id', 'name']
         )
     """
 
