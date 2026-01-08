@@ -8,5 +8,13 @@ wheels/
 
 # Virtual environments
 .venv
+venv
 
 elastic-start-local/*
+# Test and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+*.cover
+.hypothesis/
