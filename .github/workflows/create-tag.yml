@@ -1,0 +1,128 @@
+name: Create Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_type:
+        description: 'Version bump type (ignored if custom_tag is provided)'
+        required: false
+        type: choice
+        options:
+          - minor
+          - major
+        default: minor
+      custom_tag:
+        description: 'Custom tag name (e.g., v1.5.0) - overrides version_type'
+        required: false
+        type: string
+      tag_message:
+        description: 'Tag message (optional)'
+        required: false
+        type: string
+        default: 'Release tag'
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+      with:
+        ref: main
+        fetch-depth: 0
+    
+    - name: Validate branch
+      run: |
+        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        if [ "$CURRENT_BRANCH" != "main" ]; then
+          echo "Error: This workflow can only create tags from the main branch"
+          echo "Current branch: $CURRENT_BRANCH"
+          exit 1
+        fi
+        echo "✓ Running on main branch"
+    
+    - name: Get latest tag and calculate new version
+      id: version
+      run: |
+        # Check if custom tag is provided
+        if [ -n "${{ inputs.custom_tag }}" ]; then
+          NEW_TAG="${{ inputs.custom_tag }}"
+          # Add 'v' prefix if not present
+          if [[ ! "$NEW_TAG" =~ ^v ]]; then
+            NEW_TAG="v${NEW_TAG}"
+          fi
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Using custom tag: $NEW_TAG"
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "old_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "is_custom=true" >> $GITHUB_OUTPUT
+        else
+          # Get the latest tag (assumes semantic versioning like v1.2.3)
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+          
+          # Remove 'v' prefix and split into components
+          VERSION=${LATEST_TAG#v}
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          
+          # Increment based on version type
+          if [ "${{ inputs.version_type }}" == "major" ]; then
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [ "${{ inputs.version_type }}" == "minor" ]; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          fi
+          
+          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "New tag: $NEW_TAG"
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "old_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "is_custom=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Check if tag already exists
+      run: |
+        NEW_TAG="${{ steps.version.outputs.new_tag }}"
+        if git rev-parse "refs/tags/$NEW_TAG" >/dev/null 2>&1; then
+          echo "Error: Tag $NEW_TAG already exists"
+          exit 1
+        fi
+        echo "✓ Tag $NEW_TAG does not exist yet"
+    
+    - name: Configure Git
+      run: |
+        git config user.name "GitHub Actions Bot"
+        git config user.email "actions@github.com"
+    
+    - name: Create and push tag
+      run: |
+        NEW_TAG="${{ steps.version.outputs.new_tag }}"
+        git tag -a "$NEW_TAG" -m "${{ inputs.tag_message }}"
+        git push origin "$NEW_TAG"
+        echo "✓ Tag $NEW_TAG created and pushed successfully"
+        echo "✓ Previous version: ${{ steps.version.outputs.old_tag }}"
+        if [ "${{ steps.version.outputs.is_custom }}" == "true" ]; then
+          echo "✓ New version: $NEW_TAG (custom tag)"
+        else
+          echo "✓ New version: $NEW_TAG (${{ inputs.version_type }} bump)"
+        fi
+    
+    - name: Create GitHub Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.version.outputs.new_tag }}
+        release_name: Release ${{ steps.version.outputs.new_tag }}
+        body: |
+          ${{ inputs.tag_message }}
+          
+          **Version:** ${{ steps.version.outputs.new_tag }}
+          **Previous Version:** ${{ steps.version.outputs.old_tag }}
+          **Bump Type:** ${{ steps.version.outputs.is_custom == 'true' && 'Custom' || inputs.version_type }}
+        draft: false
+        prerelease: false
+
