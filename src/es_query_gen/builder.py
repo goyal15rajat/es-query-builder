@@ -1,6 +1,6 @@
 from typing import List
 
-from src.es_query_gen.models import EqualsFilter, QueryConfig, RangeFilter, SearchFilter
+from .models import EqualsFilter, QueryConfig, RangeFilter, SearchFilter
 
 
 class QueryBuilder:

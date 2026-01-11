@@ -408,3 +408,4 @@ MIT
 - For production use, consider implementing connection pooling based on your needs
 
 
+[![Tests](https://github.com/goyal15rajat/es-query-builder/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/goyal15rajat/es-query-builder/actions/workflows/tests.yml)
