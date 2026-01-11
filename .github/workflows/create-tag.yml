@@ -1,4 +1,4 @@
-name: Create Tag
+name: Create Tag and Publish to PyPI
 
 on:
   workflow_dispatch:
@@ -22,10 +22,11 @@ on:
         default: 'Release tag'
 
 jobs:
-  create-tag:
+  create-tag-and-publish:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write  # Required for trusted publishing to PyPI
     
     steps:
     - name: Checkout code
@@ -128,4 +129,28 @@ jobs:
           **Bump Type:** ${{ steps.version.outputs.is_custom == 'true' && 'Custom' || inputs.version_type }}
         draft: false
         prerelease: false
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.x'
+    
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build
+    
+    - name: Build package
+      run: python -m build
+    
+    - name: Verify build artifacts
+      run: |
+        ls -lh dist/
+        echo "✓ Build artifacts created successfully"
+    
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        verbose: true
 
