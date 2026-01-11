@@ -1,6 +1,6 @@
 [project]
 name = "es-query-gen"
-version = "0.1.0"
+version = "v1.0.0"
 description = "Library to build complex ES queries from simple Python dictionaries using typed Pydantic models."
 readme = "README.md"
 authors = [
