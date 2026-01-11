@@ -24,7 +24,7 @@ This library provides four main components:
   - Field selection
 - 🔌 **ES Client Management** - Singleton pattern with connection pooling, retries, and error handling
 - 📊 **Response Parser** - Extract documents from complex nested aggregations
-- ⚡ **Async Support** - Full async/await support for all ES operations
+- ⚡ **Async Support** - Full async/await support for all ES operations (`connect_es_async`, `search_async`, `get_index_schema_async`, etc.)
 - ✅ **Schema Validator** - Validate index schemas against expected configurations with detailed reporting
 - ✅ **100+ Tests** - Comprehensive test coverage with fixtures and integration tests
 
@@ -66,7 +66,7 @@ uv pip install -e ".[dev]"
 Define your query using a simple Python dictionary:
 
 ```python
-from es_query_gen.builder import QueryBuilder
+from es_query_gen import QueryBuilder
 
 # Define query using a simple dict - no ES DSL knowledge needed!
 config = {
@@ -87,6 +87,8 @@ print(query)
 
 ### 2. Connect to Elasticsearch
 
+**Synchronous:**
+
 ```python
 from es_query_gen import connect_es, search
 
@@ -102,10 +104,33 @@ client = connect_es(
 response = search(index='my_index', query=query)
 ```
 
+**Asynchronous:**
+
+```python
+import asyncio
+from es_query_gen import connect_es_async, search_async
+
+async def main():
+    # Connect with async client
+    client = await connect_es_async(
+        host='localhost',
+        username='elastic',
+        password='changeme',
+        request_timeout=30
+    )
+    
+    # Execute the query asynchronously
+    response = await search_async(index='my_index', query=query)
+    return response
+
+# Run async code
+response = asyncio.run(main())
+```
+
 ### 3. Parse Complex Responses
 
 ```python
-from es_query_gen.parser import ESResponseParser
+from es_query_gen import ESResponseParser
 
 # Parse search results or complex nested aggregations
 parser = ESResponseParser(config)
@@ -321,8 +346,10 @@ See [tests/README.md](tests/README.md) for detailed testing documentation.
 ### ES Client Wrapper
 - Singleton pattern for connection management
 - Automatic retry with exponential backoff
-- Both sync and async support
-- Decorators for client injection
+- Both sync and async support:
+  - Sync: `connect_es()`, `search()`, `get_index_schema()`, `get_index_settings()`
+  - Async: `connect_es_async()`, `search_async()`, `get_index_schema_async()`, `get_index_settings_async()`
+- Decorators for client injection (`@requires_es_client`, `@requires_es_client_async`)
 
 ### Response Parser
 - Extracts documents from search results
