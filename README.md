@@ -1,4 +1,5 @@
 # es-query-gen
+[![Tests](https://github.com/goyal15rajat/es-query-builder/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/goyal15rajat/es-query-builder/actions/workflows/tests.yml)
 
 **A no-code Elasticsearch query generator** - Build complex ES queries from simple Python dictionaries using typed Pydantic models.
 
@@ -406,6 +407,3 @@ MIT
 - Requires Python 3.10+ (uses `match` statement)
 - The library is designed to be extended - you can add custom query builders or parsers
 - For production use, consider implementing connection pooling based on your needs
-
-
-[![Tests](https://github.com/goyal15rajat/es-query-builder/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/goyal15rajat/es-query-builder/actions/workflows/tests.yml)
