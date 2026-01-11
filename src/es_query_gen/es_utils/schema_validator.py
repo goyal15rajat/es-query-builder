@@ -356,7 +356,7 @@ def validate_index(
         SchemaValidationResult: Detailed validation results.
 
     Example:
-        from es_utils.connection import connect_es
+        from es_query_gen import connect_es
 
         client = connect_es(host='localhost')
         expected = {

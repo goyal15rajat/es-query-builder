@@ -9,12 +9,10 @@ from .connection import (
     get_index_schema_async,
     get_index_settings,
     get_index_settings_async,
-    requires_es_client,
-    requires_es_client_async,
     search,
     search_async,
 )
-from .schema_validatior import (
+from .schema_validator import (
     SchemaValidationResult,
     SchemaValidator,
     validate_index,
@@ -31,8 +29,6 @@ __all__ = [
     "get_index_schema_async",
     "get_index_settings",
     "get_index_settings_async",
-    "requires_es_client",
-    "requires_es_client_async",
     "search",
     "search_async",
     # Schema Validation

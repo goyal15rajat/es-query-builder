@@ -9,7 +9,7 @@ from elasticsearch.exceptions import ConnectionError as ESConnectionError
 from elasticsearch.exceptions import ConnectionTimeout as ESTimeoutError
 from elasticsearch.exceptions import NotFoundError, RequestError
 
-from es_utils.connection import (
+from src.es_query_gen.es_utils.connection import (
     ESClientSingleton,
     clear_default_es,
     clear_default_es_async,
@@ -74,7 +74,7 @@ class TestESClientSingleton:
         ESClientSingleton.clear_async()
         assert ESClientSingleton.get_async() is None
 
-    @patch("es_utils.connection.Elasticsearch")
+    @patch("src.es_query_gen.es_utils.connection.Elasticsearch")
     def test_connect_with_defaults(self, mock_es_class):
         """Test connect method with default parameters."""
         mock_client = Mock(spec=Elasticsearch)
@@ -86,7 +86,7 @@ class TestESClientSingleton:
         assert ESClientSingleton.get() == mock_client
         mock_es_class.assert_called_once()
 
-    @patch("es_utils.connection.Elasticsearch")
+    @patch("src.es_query_gen.es_utils.connection.Elasticsearch")
     def test_connect_with_custom_host_port(self, mock_es_class):
         """Test connect method with custom host and port."""
         mock_client = Mock(spec=Elasticsearch)
@@ -98,7 +98,7 @@ class TestESClientSingleton:
         call_args = mock_es_class.call_args
         assert "https://es.example.com:9300" in call_args[0][0]
 
-    @patch("es_utils.connection.Elasticsearch")
+    @patch("src.es_query_gen.es_utils.connection.Elasticsearch")
     def test_connect_with_auth(self, mock_es_class):
         """Test connect method with authentication."""
         mock_client = Mock(spec=Elasticsearch)
@@ -110,7 +110,7 @@ class TestESClientSingleton:
         call_args = mock_es_class.call_args
         assert call_args[1]["http_auth"] == ("user", "pass")
 
-    @patch("es_utils.connection.Elasticsearch")
+    @patch("src.es_query_gen.es_utils.connection.Elasticsearch")
     def test_connect_with_connection_string(self, mock_es_class):
         """Test connect method with connection string."""
         mock_client = Mock(spec=Elasticsearch)
@@ -122,7 +122,7 @@ class TestESClientSingleton:
         assert client == mock_client
         mock_es_class.assert_called_once_with(connection_string, verify_certs=True)
 
-    @patch("es_utils.connection.AsyncElasticsearch")
+    @patch("src.es_query_gen.es_utils.connection.AsyncElasticsearch")
     def test_connect_async_with_defaults(self, mock_es_class):
         """Test connect_async method with default parameters."""
         mock_client = Mock(spec=AsyncElasticsearch)
@@ -133,7 +133,7 @@ class TestESClientSingleton:
         assert client == mock_client
         assert ESClientSingleton.get_async() == mock_client
 
-    @patch("es_utils.connection.AsyncElasticsearch")
+    @patch("src.es_query_gen.es_utils.connection.AsyncElasticsearch")
     def test_connect_async_with_connection_string(self, mock_es_class):
         """Test connect_async method with connection string."""
         mock_client = Mock(spec=AsyncElasticsearch)
@@ -159,7 +159,7 @@ class TestConnectionHelpers:
         ESClientSingleton.clear()
         ESClientSingleton.clear_async()
 
-    @patch("es_utils.connection.Elasticsearch")
+    @patch("src.es_query_gen.es_utils.connection.Elasticsearch")
     def test_connect_es(self, mock_es_class):
         """Test connect_es function."""
         mock_client = Mock(spec=Elasticsearch)

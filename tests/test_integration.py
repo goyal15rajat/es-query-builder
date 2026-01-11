@@ -14,14 +14,14 @@ import os
 
 import pytest
 
-from es_utils.connection import (
+from src.es_query_gen.builder import QueryBuilder
+from src.es_query_gen.es_utils.connection import (
     connect_es,
     get_es_version,
     get_index_schema,
     ping,
     search,
 )
-from src.es_query_gen.builder import QueryBuilder
 from src.es_query_gen.models import (
     AggregationRule,
     EqualsFilter,

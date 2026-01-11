@@ -87,7 +87,7 @@ print(query)
 ### 2. Connect to Elasticsearch
 
 ```python
-from es_query_gen.connection import connect_es, search
+from es_query_gen import connect_es, search
 
 # Connect with automatic client management
 client = connect_es(
@@ -120,7 +120,7 @@ for doc in results:
 Ensure your Elasticsearch indices match expected configurations:
 
 ```python
-from es_utils import validate_index, SchemaValidator
+from es_query_gen import validate_index, SchemaValidator
 
 # Define expected schema
 expected_schema = {
