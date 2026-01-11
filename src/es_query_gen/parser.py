@@ -122,7 +122,7 @@ class ESResponseParser:
         bucket_item_list = aggs_bucket_data["buckets"]
 
         if node.next == None:
-            # Leafs node do something
+            # Leafs node - extract top_hits
             if len(bucket_item_list) == 0:
                 return
 

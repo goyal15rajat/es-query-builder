@@ -9,7 +9,7 @@ from elasticsearch.exceptions import ConnectionError as ESConnectionError
 from elasticsearch.exceptions import ConnectionTimeout as ESTimeoutError
 from elasticsearch.exceptions import NotFoundError, RequestError
 
-from src.es_query_gen.connection import (
+from es_utils.connection import (
     ESClientSingleton,
     clear_default_es,
     clear_default_es_async,
@@ -74,7 +74,7 @@ class TestESClientSingleton:
         ESClientSingleton.clear_async()
         assert ESClientSingleton.get_async() is None
 
-    @patch("src.es_query_gen.connection.Elasticsearch")
+    @patch("es_utils.connection.Elasticsearch")
     def test_connect_with_defaults(self, mock_es_class):
         """Test connect method with default parameters."""
         mock_client = Mock(spec=Elasticsearch)
@@ -86,7 +86,7 @@ class TestESClientSingleton:
         assert ESClientSingleton.get() == mock_client
         mock_es_class.assert_called_once()
 
-    @patch("src.es_query_gen.connection.Elasticsearch")
+    @patch("es_utils.connection.Elasticsearch")
     def test_connect_with_custom_host_port(self, mock_es_class):
         """Test connect method with custom host and port."""
         mock_client = Mock(spec=Elasticsearch)
@@ -98,7 +98,7 @@ class TestESClientSingleton:
         call_args = mock_es_class.call_args
         assert "https://es.example.com:9300" in call_args[0][0]
 
-    @patch("src.es_query_gen.connection.Elasticsearch")
+    @patch("es_utils.connection.Elasticsearch")
     def test_connect_with_auth(self, mock_es_class):
         """Test connect method with authentication."""
         mock_client = Mock(spec=Elasticsearch)
@@ -110,7 +110,7 @@ class TestESClientSingleton:
         call_args = mock_es_class.call_args
         assert call_args[1]["http_auth"] == ("user", "pass")
 
-    @patch("src.es_query_gen.connection.Elasticsearch")
+    @patch("es_utils.connection.Elasticsearch")
     def test_connect_with_connection_string(self, mock_es_class):
         """Test connect method with connection string."""
         mock_client = Mock(spec=Elasticsearch)
@@ -122,7 +122,7 @@ class TestESClientSingleton:
         assert client == mock_client
         mock_es_class.assert_called_once_with(connection_string, verify_certs=True)
 
-    @patch("src.es_query_gen.connection.AsyncElasticsearch")
+    @patch("es_utils.connection.AsyncElasticsearch")
     def test_connect_async_with_defaults(self, mock_es_class):
         """Test connect_async method with default parameters."""
         mock_client = Mock(spec=AsyncElasticsearch)
@@ -133,7 +133,7 @@ class TestESClientSingleton:
         assert client == mock_client
         assert ESClientSingleton.get_async() == mock_client
 
-    @patch("src.es_query_gen.connection.AsyncElasticsearch")
+    @patch("es_utils.connection.AsyncElasticsearch")
     def test_connect_async_with_connection_string(self, mock_es_class):
         """Test connect_async method with connection string."""
         mock_client = Mock(spec=AsyncElasticsearch)
@@ -159,7 +159,7 @@ class TestConnectionHelpers:
         ESClientSingleton.clear()
         ESClientSingleton.clear_async()
 
-    @patch("src.es_query_gen.connection.Elasticsearch")
+    @patch("es_utils.connection.Elasticsearch")
     def test_connect_es(self, mock_es_class):
         """Test connect_es function."""
         mock_client = Mock(spec=Elasticsearch)
@@ -317,13 +317,19 @@ class TestESOperations:
         mock_client = Mock(spec=Elasticsearch)
         mock_indices = Mock()
         mock_client.indices = mock_indices
-        expected_schema = {"test_index": {"mappings": {"properties": {"field1": {"type": "text"}}}}}
-        mock_indices.get_mapping.return_value = expected_schema
 
-        result = get_index_schema(es=mock_client, index="test_index")
+        # Mock both get_mapping and get_settings
+        mock_indices.get_mapping.return_value = {
+            "test_index": {"mappings": {"properties": {"field1": {"type": "text"}}}}
+        }
+        mock_indices.get_settings.return_value = {"test_index": {"settings": {"number_of_shards": "1"}}}
 
-        assert result == expected_schema
+        result = get_index_schema(index="test_index", es=mock_client)
+
+        assert "mappings" in result
+        assert "settings" in result
         mock_indices.get_mapping.assert_called_once_with(index="test_index")
+        mock_indices.get_settings.assert_called_once_with(index="test_index")
 
     def test_get_index_schema_not_found(self):
         """Test get_index_schema raises NotFoundError for missing index."""

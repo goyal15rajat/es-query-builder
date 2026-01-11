@@ -4,11 +4,12 @@
 
 ## Overview
 
-This library provides three main components:
+This library provides four main components:
 
 1. **Query Generator** - Convert simple configuration dictionaries into complex Elasticsearch DSL queries
 2. **ES Client Wrapper** - Simplified connection management with retry logic, timeouts, and both sync/async support
 3. **Response Parser** - Parse complex Elasticsearch responses including nested aggregations into clean Python objects
+4. **Schema Validator** - Validate Elasticsearch index schemas to ensure settings and field mappings match expected configurations
 
 ## Features
 
@@ -23,6 +24,7 @@ This library provides three main components:
 - 🔌 **ES Client Management** - Singleton pattern with connection pooling, retries, and error handling
 - 📊 **Response Parser** - Extract documents from complex nested aggregations
 - ⚡ **Async Support** - Full async/await support for all ES operations
+- ✅ **Schema Validator** - Validate index schemas against expected configurations with detailed reporting
 - ✅ **100+ Tests** - Comprehensive test coverage with fixtures and integration tests
 
 ## Requirements
@@ -113,6 +115,74 @@ for doc in results:
     print(doc['name'], doc['email'])
 ```
 
+### 4. Validate Index Schemas
+
+Ensure your Elasticsearch indices match expected configurations:
+
+```python
+from es_utils import validate_index, SchemaValidator
+
+# Define expected schema
+expected_schema = {
+    "settings": {
+        "number_of_shards": 1,
+        "analysis": {
+            "normalizer": {
+                "lowercase_normalizer": {
+                    "type": "custom",
+                    "filter": ["lowercase"]
+                }
+            }
+        }
+    },
+    "mappings": {
+        "properties": {
+            "name": {
+                "type": "text",
+                "fields": {
+                    "keyword": {"type": "keyword", "normalizer": "lowercase_normalizer"}
+                }
+            },
+            "age": {"type": "integer"},
+            "email": {"type": "keyword"}
+        }
+    }
+}
+
+# Validate against live index
+result = validate_index("my_index", expected_schema, es=client)
+
+if not result.is_valid:
+    print(result)  # Detailed error report
+    # Output:
+    # Schema Validation: FAILED
+    #
+    # Errors (2):
+    #   - Missing field in schema: email
+    #   - Type mismatch for field 'age': expected 'integer', got 'text'
+    #
+    # Missing Fields (1):
+    #   - email
+
+# Use custom validator with options
+validator = SchemaValidator(strict_mode=False, ignore_extra_fields=True)
+result = validator.validate_index("my_index", expected_schema)
+
+# Check specific validation details
+if result.type_mismatches:
+    for field, (expected, actual) in result.type_mismatches.items():
+        print(f"Field {field}: expected {expected}, got {actual}")
+```
+
+**Schema Validator Features:**
+- ✅ **Settings validation** - Compare index settings (shards, replicas, analyzers, normalizers)
+- ✅ **Field type validation** - Ensure field types match (text, keyword, integer, date, etc.)
+- ✅ **Field properties validation** - Validate format, analyzer, normalizer, and other field settings
+- ✅ **Nested fields support** - Handle multi-fields and nested object properties
+- ✅ **Detailed reporting** - Get comprehensive results with errors, warnings, and specific mismatches
+- ✅ **Flexible modes** - Strict mode for errors, non-strict for warnings, ignore extra fields option
+- ✅ **Convenience functions** - Simple one-line validation with `validate_index()` or `validate_schema()`
+
 ### Advanced Example: Nested Aggregations
 
 Build complex aggregation queries without writing ES DSL:
@@ -201,6 +271,7 @@ Or use the provided test runner script:
 - **tests/test_builder.py** - Tests for QueryBuilder query construction (40+ tests)
 - **tests/test_parser.py** - Tests for ESResponseParser (35+ tests)
 - **tests/test_connection.py** - Tests for ES connection management (40+ tests)
+- **tests/test_schema_validator.py** - Tests for schema validation (40+ tests)
 - **tests/test_integration.py** - Integration tests (requires running ES)
 - **tests/conftest.py** - Shared fixtures and test configuration
 
@@ -229,6 +300,7 @@ The test suite provides comprehensive coverage:
 - Builder: 100% - All query building paths
 - Parser: 100% - Search and aggregation parsing
 - Connection: High - All connection and operation flows
+- Schema Validator: High - All validation scenarios and edge cases
 
 View detailed coverage report:
 ```bash
@@ -253,7 +325,14 @@ See [tests/README.md](tests/README.md) for detailed testing documentation.
 
 ### Response Parser
 - Extracts documents from search results
-- Parses nested aggregations (any depth)
+- Parses nested aggregations (any de
+
+### Schema Validator
+- Validates index schemas against expected configurations
+- Compares settings and field mappings
+- Supports strict and non-strict validation modes
+- Detailed error and warning reporting
+- Handles nested fields and complex structurespth)
 - Preserves all _source fields + _id
 
 ## Contributing

@@ -324,7 +324,7 @@ def ping(es: Optional[Elasticsearch] = None) -> bool:
 
 
 @requires_es_client
-def get_index_schema(es: Optional[Elasticsearch] = None, index: str = "") -> Dict[str, Any]:
+def get_index_schema(index: str, es: Optional[Elasticsearch] = None) -> Dict[str, Any]:
     """Return the mapping/schema for the given index.
 
     Args:
@@ -337,7 +337,44 @@ def get_index_schema(es: Optional[Elasticsearch] = None, index: str = "") -> Dic
     Raises:
         NotFoundError: If the index does not exist.
     """
+    return {
+        **get_index_mapping(index=index, es=es)[index],
+        **get_index_settings(index=index, es=es)[index],
+    }
+
+
+@requires_es_client
+def get_index_mapping(index: str, es: Optional[Elasticsearch] = None) -> Dict[str, Any]:
+    """Return the mapping for the given index.
+
+    Args:
+        es: Elasticsearch client (auto-injected if not provided).
+        index: The name of the index to retrieve the for.
+
+    Returns:
+        Dictionary containing the index mapping.
+
+    Raises:
+        NotFoundError: If the index does not exist.
+    """
     return es.indices.get_mapping(index=index)
+
+
+@requires_es_client
+def get_index_settings(index: str, es: Optional[Elasticsearch] = None) -> Dict[str, Any]:
+    """Return the settings for the given index.
+
+    Args:
+        es: Elasticsearch client (auto-injected if not provided).
+        index: The name of the index to retrieve the settings for.
+
+    Returns:
+        Dictionary containing the index settings.
+
+    Raises:
+        NotFoundError: If the index does not exist.
+    """
+    return es.indices.get_settings(index=index)
 
 
 @requires_es_client
@@ -499,6 +536,23 @@ async def get_index_schema_async(es: Optional[AsyncElasticsearch] = None, index:
         NotFoundError: If the index does not exist.
     """
     return await es.indices.get_mapping(index=index)
+
+
+@requires_es_client_async
+async def get_index_settings_async(es: Optional[AsyncElasticsearch] = None, index: str = "") -> Dict[str, Any]:
+    """Return the settings for the given index asynchronously.
+
+    Args:
+        es: AsyncElasticsearch client (auto-injected if not provided).
+        index: The name of the index to retrieve the settings for.
+
+    Returns:
+        Dictionary containing the index settings.
+
+    Raises:
+        NotFoundError: If the index does not exist.
+    """
+    return await es.indices.get_settings(index=index)
 
 
 @requires_es_client_async
