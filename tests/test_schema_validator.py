@@ -4,8 +4,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from es_utils.connection import ESClientSingleton
-from es_utils.schema_validatior import (
+from src.es_query_gen.es_utils.connection import ESClientSingleton
+from src.es_query_gen.es_utils.schema_validator import (
     SchemaValidationResult,
     SchemaValidator,
     validate_index,
