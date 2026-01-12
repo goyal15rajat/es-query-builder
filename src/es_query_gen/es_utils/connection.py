@@ -5,10 +5,11 @@ from functools import wraps
 from typing import Any, Dict, Optional
 
 from elasticsearch import AsyncElasticsearch, Elasticsearch
-from elasticsearch.exceptions import BadRequestError
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
 from elasticsearch.exceptions import ConnectionTimeout as ESTimeoutError
-from elasticsearch.exceptions import NotFoundError, RequestError
+from elasticsearch.exceptions import NotFoundError
+from elasticsearch.exceptions import RequestError
+from elasticsearch.exceptions import RequestError as BadRequestError
 
 
 def requires_es_client(func):
