@@ -24,7 +24,8 @@ This library provides four main components:
   - Field selection
 - 🔌 **ES Client Management** - Singleton pattern with connection pooling, retries, and error handling
 - 📊 **Response Parser** - Extract documents from complex nested aggregations
-- ⚡ **Async Support** - Full async/await support for all ES operations (`connect_es_async`, `search_async`, `get_index_schema_async`, etc.)
+- ⚡ **Async Support** - Full async/await support for all ES operations (`connect_es_async`, `es_search_async`, `get_index_schema_async`, etc.)
+- 📝 **Comprehensive Logging** - Built-in logging with performance metrics, compatible with JSON/structured logging
 - ✅ **Schema Validator** - Validate index schemas against expected configurations with detailed reporting
 - ✅ **100+ Tests** - Comprehensive test coverage with fixtures and integration tests
 
@@ -90,7 +91,7 @@ print(query)
 **Synchronous:**
 
 ```python
-from es_query_gen import connect_es, search
+from es_query_gen import connect_es, es_search
 
 # Connect with automatic client management
 client = connect_es(
@@ -101,14 +102,14 @@ client = connect_es(
 )
 
 # Execute the query with retry logic
-response = search(index='my_index', query=query)
+response = es_search(index='my_index', query=query)
 ```
 
 **Asynchronous:**
 
 ```python
 import asyncio
-from es_query_gen import connect_es_async, search_async
+from es_query_gen import connect_es_async, es_search_async
 
 async def main():
     # Connect with async client
@@ -120,7 +121,7 @@ async def main():
     )
     
     # Execute the query asynchronously
-    response = await search_async(index='my_index', query=query)
+    response = await es_search_async(index='my_index', query=query)
     return response
 
 # Run async code
@@ -141,7 +142,67 @@ for doc in results:
     print(doc['name'], doc['email'])
 ```
 
-### 4. Validate Index Schemas
+### 4. Configure Logging
+
+The library uses Python's standard `logging` module and automatically inherits the logging configuration from your application:
+
+```python
+import logging
+from es_query_gen import connect_es, es_search
+
+# Configure logging for your application
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+
+# The library will use your logger configuration
+client = connect_es(host='localhost', username='elastic', password='changeme')
+response = es_search(index='my_index', query=query)
+
+# Logs will show:
+# 2026-01-17 10:30:45 - es_query_gen.es_utils.connection - INFO - Ping completed in 15.23ms
+# 2026-01-17 10:30:46 - es_query_gen.es_utils.connection - INFO - Search completed in 142.56ms (index='my_index', from=0, query={...})
+```
+
+**JSON Logging:**
+
+The library works seamlessly with JSON logging libraries:
+
+```python
+import logging
+from pythonjsonlogger import jsonlogger
+from es_query_gen import connect_es, es_search
+
+# Configure JSON logger
+logger = logging.getLogger()
+logHandler = logging.StreamHandler()
+formatter = jsonlogger.JsonFormatter(
+    '%(asctime)s %(name)s %(levelname)s %(message)s'
+)
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
+logger.setLevel(logging.INFO)
+
+# Library logs will automatically be in JSON format
+client = connect_es(host='localhost')
+response = es_search(index='my_index', query=query)
+
+# Output: {"asctime": "2026-01-17 10:30:45", "name": "es_query_gen.es_utils.connection", 
+#          "levelname": "INFO", "message": "Search completed in 142.56ms..."}
+```
+
+**What Gets Logged:**
+
+- **Performance metrics**: Timing for all ES operations (ping, search) in milliseconds
+- **Query details**: Index name, query parameters, pagination (from, size)
+- **Connection events**: Client initialization, connection status
+- **Validation results**: Schema validation errors and warnings
+- **Retry attempts**: Timeout/connection errors with retry counts
+
+See [LOGGING.md](LOGGING.md) for comprehensive logging documentation and examples.
+
+### 5. Validate Index Schemas
 
 Ensure your Elasticsearch indices match expected configurations:
 
@@ -347,9 +408,10 @@ See [tests/README.md](tests/README.md) for detailed testing documentation.
 - Singleton pattern for connection management
 - Automatic retry with exponential backoff
 - Both sync and async support:
-  - Sync: `connect_es()`, `search()`, `get_index_schema()`, `get_index_settings()`
-  - Async: `connect_es_async()`, `search_async()`, `get_index_schema_async()`, `get_index_settings_async()`
+  - Sync: `connect_es()`, `es_search()`, `get_index_schema()`, `get_index_settings()`
+  - Async: `connect_es_async()`, `es_search_async()`, `get_index_schema_async()`, `get_index_settings_async()`
 - Decorators for client injection (`@requires_es_client`, `@requires_es_client_async`)
+- Built-in logging with configurable handlers
 
 ### Response Parser
 - Extracts documents from search results

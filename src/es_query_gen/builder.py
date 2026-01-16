@@ -1,6 +1,9 @@
+import logging
 from typing import List
 
 from .models import EqualsFilter, QueryConfig, RangeFilter, SearchFilter
+
+logger = logging.getLogger(__name__)
 
 
 class QueryBuilder:
@@ -161,6 +164,7 @@ class QueryBuilder:
         Returns:
             Dictionary representing a complete Elasticsearch query DSL.
         """
+        logger.debug("Building Elasticsearch query from QueryConfig")
         es_query_config = QueryConfig.model_validate(es_query_config)
 
         self._add_filter(es_query_config.searchFilters)
@@ -169,8 +173,9 @@ class QueryBuilder:
             self._add_sort(es_query_config.sortList)
             self._add_size(es_query_config.size)
             self._add_include(es_query_config.returnFields)
-
         else:
+            logger.debug(f"Adding aggregations: {len(es_query_config.aggs)} levels")
             self._add_aggs(es_query_config.aggs, es_query_config.returnFields, es_query_config.size)
 
+        logger.debug(f"Built query with size={self.query.get('size', 'default')}")
         return self.query

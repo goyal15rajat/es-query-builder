@@ -4,11 +4,14 @@ This module provides utilities to validate Elasticsearch index schemas,
 ensuring that settings and field mappings match expected configurations.
 """
 
+import logging
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from elasticsearch import Elasticsearch
 
 from .connection import get_index_schema, requires_es_client
+
+logger = logging.getLogger(__name__)
 
 
 class SchemaValidationResult:
@@ -186,15 +189,23 @@ class SchemaValidator:
             if not result.is_valid:
                 print(result)
         """
+        logger.info(f"Validating schema for index '{index}'")
         # Get actual schema from Elasticsearch
         actual_schema = get_index_schema(index=index, es=es)
 
-        return self.validate_schema(
+        result = self.validate_schema(
             expected_schema=expected_schema,
             actual_schema=actual_schema,
             validate_settings=validate_settings,
             validate_mappings=validate_mappings,
         )
+
+        if result.is_valid:
+            logger.info(f"Schema validation passed for index '{index}'")
+        else:
+            logger.warning(f"Schema validation failed for index '{index}' with {len(result.errors)} errors")
+
+        return result
 
     def _validate_settings(
         self,
