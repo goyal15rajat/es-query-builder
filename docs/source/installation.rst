@@ -84,14 +84,65 @@ Asynchronous example (async/await):
        ok = await client.ping()
        version = await get_es_version(es=client)
 
-       query = QueryBuilder().build({"searchFilters": {}})
+      config = {
+          "size": 10,
+          "searchFilters": {
+              "equals": [
+                  {
+                      "field": "age",
+                      "value": "35"
+                  }
+              ],
+              "rangeFilters": [
+                  {
+                      "field": "dob",
+                      "rangeType": "date",
+                      "dateFormat": "%m/%d/%Y",
+                      "gte": {
+                          "month": 2,
+                          "years": -60
+                      },
+                      "lt": {
+                          "month": 9,
+                          "day": 10,
+                          "years": -20
+                      }
+                  }
+              ]
+          },
+          "sortList": [
+              {
+                  "field": "dob",
+                  "order": "asc"
+              }
+          ],
+          "returnFields": ["name", "dob", "phone"],
+          "aggs": [
+              {
+                  "name": "address_bucket",
+                  "field": "address.keyword",
+                  "size": 100,
+                  "order": "asc"
+              },
+              {
+                  "name": "dob_bucket",
+                  "field": "dob",
+                  "size": 100,
+                  "order": "asc"
+              },
+              {
+                  "name": "name_bucket",
+                  "field": "name.keyword",
+                  "size": 100,
+                  "order": "desc"
+              }
+          ]
+      }
+
+       query = QueryBuilder().build(config)
        resp = await es_search_async(es=client, index="my_index", query=query)
        results = ESResponseParser({}).parse_data(resp)
 
    asyncio.run(main())
 
-Notes
------
 
-- The package exposes a small set of top-level helpers via the package `__init__` for convenience. See the code in `src/es_query_gen/__init__.py` for the complete exported list.
-- If you need to support Elasticsearch 9+, update the `elasticsearch` dependency in `pyproject.toml` and verify compatibility of the client API.
