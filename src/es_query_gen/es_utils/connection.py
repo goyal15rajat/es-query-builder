@@ -177,7 +177,7 @@ class ESClientSingleton:
             username: Username for authentication (optional).
             password: Password for authentication (optional).
             verify_certs: Whether to verify SSL certificates (default: True).
-            **kwargs: Additional arguments to pass to Elasticsearch client.
+            kwargs: Additional arguments to pass to Elasticsearch client.
 
         Returns:
             The created Elasticsearch client instance.
@@ -226,7 +226,7 @@ class ESClientSingleton:
             username: Username for authentication (optional).
             password: Password for authentication (optional).
             verify_certs: Whether to verify SSL certificates (default: True).
-            **kwargs: Additional arguments to pass to AsyncElasticsearch client.
+            kwargs: Additional arguments to pass to AsyncElasticsearch client.
 
         Returns:
             The created AsyncElasticsearch client instance.
@@ -274,7 +274,7 @@ def connect_es(
         username: Username for authentication (optional).
         password: Password for authentication (optional).
         verify_certs: Whether to verify SSL certificates (default: True).
-        **kwargs: Additional arguments to pass to Elasticsearch client.
+        kwargs: Additional arguments to pass to Elasticsearch client.
 
     Returns:
         The created Elasticsearch client instance.
@@ -427,7 +427,7 @@ def es_search(
         index: Index name or pattern (default: "*" for all indices).
         query: Elasticsearch query dict (default: empty match_all query).
         size: Number of results to return (default: 10).
-        from_: Offset for pagination (default: 0).
+        ``from_``: Offset for pagination (default: 0).
         timeout: Server-side timeout (default: "10s").
         max_retries: Number of retry attempts (default: 3).
         retry_delay: Initial delay between retries in seconds (default: 0.5, with exponential backoff).
@@ -511,7 +511,7 @@ async def connect_es_async(
         username: Username for authentication (optional).
         password: Password for authentication (optional).
         verify_certs: Whether to verify SSL certificates (default: True).
-        **kwargs: Additional arguments to pass to AsyncElasticsearch client.
+        kwargs: Additional arguments to pass to AsyncElasticsearch client.
 
     Returns:
         The created AsyncElasticsearch client instance.
@@ -617,7 +617,7 @@ async def es_search_async(
         index: Index name or pattern (default: "*" for all indices).
         query: Elasticsearch query dict (default: empty match_all query).
         size: Number of results to return (default: 10).
-        from_: Offset for pagination (default: 0).
+        ``from_``: Offset for pagination (default: 0).
         timeout: Server-side timeout (default: "10s").
         max_retries: Number of retry attempts (default: 3).
         retry_delay: Initial delay between retries in seconds (default: 0.5, with exponential backoff).

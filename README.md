@@ -425,6 +425,57 @@ See [tests/README.md](tests/README.md) for detailed testing documentation.
 - Handles nested fields and complex structurespth)
 - Preserves all _source fields + _id
 
+## Documentation (Sphinx)
+
+How to build and update the Sphinx documentation locally.
+
+1. Install development dependencies (includes Sphinx):
+
+```bash
+pip install -e .[dev]
+```
+
+2. Build static HTML docs:
+
+```bash
+# Build into docs/_build/html
+sphinx-build -b html docs/source docs/_build/html
+
+# Open the generated docs (macOS)
+open docs/_build/html/index.html
+```
+
+If you prefer the Makefile helpers (common in Sphinx projects), you can use:
+
+```bash
+# From the repo root (when a Makefile exists under `docs`)
+make -C docs clean
+make -C docs html
+
+# or, from inside the docs directory if a Makefile is present
+cd docs && make clean && make html
+
+# The above `make html` will place built files in `docs/_build/html`
+```
+
+If you don't have a Makefile, `sphinx-build` shown above is the equivalent.
+
+3. Live-reload while editing docs:
+
+```bash
+# Requires sphinx-autobuild (in dev extras)
+sphinx-autobuild docs/source docs/_build/html
+```
+
+4. Notes on API autodoc
+
+- We enabled `sphinx.ext.autodoc` and the `src` directory is added to `sys.path` in `docs/source/conf.py` so `.. automodule:: es_query_gen` will document the package exports.
+- If you add new public functions or classes to the package, update their docstrings and then rebuild the docs to include them.
+
+5. Commit changes
+
+- The built HTML files are under `docs/_build/html`. You generally should not commit built HTML unless you host them in the repo (e.g., GitHub Pages). Commit source files under `docs/source`.
+
 ## Contributing
 
 Contributions are welcome! Here's how to get started:
