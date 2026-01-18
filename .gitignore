@@ -18,3 +18,7 @@ htmlcov/
 .tox/
 *.cover
 .hypothesis/
+
+# Sphinx build output
+docs/build/
+_build/

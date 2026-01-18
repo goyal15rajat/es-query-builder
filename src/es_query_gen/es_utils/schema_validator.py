@@ -119,19 +119,23 @@ class SchemaValidator:
             SchemaValidationResult: Detailed validation results.
 
         Example:
-            validator = SchemaValidator()
-            expected = {
-                "settings": {"number_of_shards": 1},
-                "mappings": {
-                    "properties": {
-                        "name": {"type": "text"},
-                        "age": {"type": "integer"}
+
+            .. code-block:: python
+
+                validator = SchemaValidator()
+                expected = {
+                    "settings": {"number_of_shards": 1},
+                    "mappings": {
+                        "properties": {
+                            "name": {"type": "text"},
+                            "age": {"type": "integer"}
+                        }
                     }
                 }
-            }
-            result = validator.validate_schema(expected, actual)
-            if not result.is_valid:
-                print(result)
+                result = validator.validate_schema(expected, actual)
+                if not result.is_valid:
+                    print(result)
+
         """
         result = SchemaValidationResult()
 
@@ -175,19 +179,23 @@ class SchemaValidator:
             SchemaValidationResult: Detailed validation results.
 
         Example:
-            validator = SchemaValidator()
-            expected = {
-                "settings": {"number_of_shards": 1},
-                "mappings": {
-                    "properties": {
-                        "name": {"type": "text"},
-                        "age": {"type": "integer"}
+
+                .. code-block:: python
+
+                    validator = SchemaValidator()
+                    expected = {
+                        "settings": {"number_of_shards": 1},
+                        "mappings": {
+                            "properties": {
+                                "name": {"type": "text"},
+                                "age": {"type": "integer"}
+                            }
+                        }
                     }
-                }
-            }
-            result = validator.validate_index("my_index", expected, es=client)
-            if not result.is_valid:
-                print(result)
+                    result = validator.validate_index("my_index", expected, es=client)
+                    if not result.is_valid:
+                        print(result)
+
         """
         logger.info(f"Validating schema for index '{index}'")
         # Get actual schema from Elasticsearch
@@ -331,16 +339,20 @@ def validate_schema(
         SchemaValidationResult: Detailed validation results.
 
     Example:
-        expected = {
-            "mappings": {
-                "properties": {
-                    "name": {"type": "text"},
-                    "age": {"type": "integer"}
+
+        .. code-block:: python
+
+            expected = {
+                "mappings": {
+                    "properties": {
+                        "name": {"type": "text"},
+                        "age": {"type": "integer"}
+                    }
                 }
             }
-        }
-        result = validate_schema(expected, actual)
-        print(result)
+            result = validate_schema(expected, actual)
+            print(result)
+
     """
     validator = SchemaValidator(strict_mode=strict_mode, ignore_extra_fields=ignore_extra_fields)
     return validator.validate_schema(expected_schema, actual_schema)
@@ -367,20 +379,24 @@ def validate_index(
         SchemaValidationResult: Detailed validation results.
 
     Example:
-        from es_query_gen import connect_es
 
-        client = connect_es(host='localhost')
-        expected = {
-            "mappings": {
-                "properties": {
-                    "name": {"type": "text"},
-                    "age": {"type": "integer"}
+        .. code-block:: python
+
+            from es_query_gen import connect_es
+
+            client = connect_es(host='localhost')
+            expected = {
+                "mappings": {
+                    "properties": {
+                        "name": {"type": "text"},
+                        "age": {"type": "integer"}
+                    }
                 }
             }
-        }
-        result = validate_index("my_index", expected, es=client)
-        if not result.is_valid:
-            print(result)
+            result = validate_index("my_index", expected, es=client)
+            if not result.is_valid:
+                print(result)
+
     """
     validator = SchemaValidator(strict_mode=strict_mode, ignore_extra_fields=ignore_extra_fields)
     return validator.validate_index(index, expected_schema, es=es)
