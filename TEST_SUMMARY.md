@@ -214,7 +214,7 @@ def test_search_success():
     expected_response = {"hits": {"total": {"value": 1}, "hits": []}}
     mock_client.search.return_value = expected_response
     
-    result = search(es=mock_client, index="test_index")
+    result = es_search(es=mock_client, index="test_index")
     
     assert result == expected_response
 ```

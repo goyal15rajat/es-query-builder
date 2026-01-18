@@ -1,6 +1,9 @@
+import logging
 from typing import Any, Dict, List, Optional
 
 from .models import QueryConfig
+
+logger = logging.getLogger(__name__)
 
 
 class Node:
@@ -47,12 +50,15 @@ class ESResponseParser:
         Returns:
             List of dict objects representing documents or aggregation results.
         """
-
+        logger.debug("Parsing Elasticsearch response")
         if "aggs" in self.query_config:
+            logger.debug("Parsing aggregation results")
             self.parse_aggregations(response)
         else:
+            logger.debug("Parsing search hits")
             self.parse_search_results(response)
 
+        logger.debug(f"Parsed {len(self.results)} results")
         return self.results
 
     def parse_search_results(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:

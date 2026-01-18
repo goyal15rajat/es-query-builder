@@ -17,10 +17,10 @@ import pytest
 from src.es_query_gen.builder import QueryBuilder
 from src.es_query_gen.es_utils.connection import (
     connect_es,
+    es_search,
     get_es_version,
     get_index_schema,
     ping,
-    search,
 )
 from src.es_query_gen.models import (
     AggregationRule,
@@ -113,7 +113,7 @@ class TestQueryBuilderIntegration:
 
         # Try to execute (may not return results if index doesn't exist, but should not error)
         try:
-            response = search(es=es_client, index=test_index, query=query)
+            response = es_search(es=es_client, index=test_index, query=query)
             assert "hits" in response
         except Exception as e:
             # Index might not exist, which is OK for this test
@@ -167,7 +167,7 @@ class TestEndToEndWorkflow:
 
         # Execute query (might return empty results)
         try:
-            response = search(es=es_client, index=test_index, query=query)
+            response = es_search(es=es_client, index=test_index, query=query)
 
             # Parse response
             parser = ESResponseParser(config)
@@ -203,7 +203,7 @@ class TestEndToEndWorkflow:
 
         # Execute query
         try:
-            response = search(es=es_client, index=test_index, query=query)
+            response = es_search(es=es_client, index=test_index, query=query)
 
             # Parse response
             parser = ESResponseParser(config_dict)

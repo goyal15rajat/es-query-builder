@@ -4,17 +4,24 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from elasticsearch import AsyncElasticsearch, Elasticsearch
-from elasticsearch.exceptions import BadRequestError
 from elasticsearch.exceptions import ConnectionError as ESConnectionError
 from elasticsearch.exceptions import ConnectionTimeout as ESTimeoutError
-from elasticsearch.exceptions import NotFoundError, RequestError
+from elasticsearch.exceptions import NotFoundError
+from elasticsearch.exceptions import RequestError
+from elasticsearch.exceptions import RequestError as BadRequestError
 
+# For testing across ES 7/8/9 where exception constructors differ,
+# replace the exception classes used inside the connection module with
+# simple Exception subclasses that are easy to instantiate.
+from src.es_query_gen.es_utils import connection as conn_mod
 from src.es_query_gen.es_utils.connection import (
     ESClientSingleton,
     clear_default_es,
     clear_default_es_async,
     connect_es,
     connect_es_async,
+    es_search,
+    es_search_async,
     get_es_version,
     get_es_version_async,
     get_index_schema,
@@ -23,11 +30,32 @@ from src.es_query_gen.es_utils.connection import (
     ping_async,
     requires_es_client,
     requires_es_client_async,
-    search,
-    search_async,
     set_default_es,
     set_default_es_async,
 )
+
+
+class SimpleESConnectionError(Exception):
+    pass
+
+
+class SimpleESTimeoutError(Exception):
+    pass
+
+
+class SimpleNotFoundError(Exception):
+    pass
+
+
+class SimpleRequestError(Exception):
+    pass
+
+
+conn_mod.ESConnectionError = SimpleESConnectionError
+conn_mod.ESTimeoutError = SimpleESTimeoutError
+conn_mod.NotFoundError = SimpleNotFoundError
+conn_mod.RequestError = SimpleRequestError
+conn_mod.BadRequestError = SimpleRequestError
 
 
 class TestESClientSingleton:
@@ -336,11 +364,9 @@ class TestESOperations:
         mock_client = Mock(spec=Elasticsearch)
         mock_indices = Mock()
         mock_client.indices = mock_indices
-        mock_meta = Mock()
-        mock_meta.status = 404
-        mock_indices.get_mapping.side_effect = NotFoundError("Index not found", meta=mock_meta, body={})
+        mock_indices.get_mapping.side_effect = conn_mod.NotFoundError("Index not found")
 
-        with pytest.raises(NotFoundError):
+        with pytest.raises(conn_mod.NotFoundError):
             get_index_schema(es=mock_client, index="missing_index")
 
     def test_get_es_version(self):
@@ -368,7 +394,7 @@ class TestESOperations:
         mock_client.search.return_value = expected_response
 
         query = {"query": {"match_all": {}}}
-        result = search(es=mock_client, index="test_index", query=query)
+        result = es_search(es=mock_client, index="test_index", query=query)
 
         assert result == expected_response
         mock_client.search.assert_called_once()
@@ -379,7 +405,7 @@ class TestESOperations:
         expected_response = {"hits": {"total": {"value": 0}, "hits": []}}
         mock_client.search.return_value = expected_response
 
-        result = search(es=mock_client, index="test_index")
+        result = es_search(es=mock_client, index="test_index")
 
         assert result == expected_response
         call_args = mock_client.search.call_args
@@ -388,33 +414,29 @@ class TestESOperations:
     def test_search_not_found_error(self):
         """Test search raises NotFoundError for missing index."""
         mock_client = Mock(spec=Elasticsearch)
-        mock_meta = Mock()
-        mock_meta.status = 404
-        mock_client.search.side_effect = NotFoundError("Index not found", meta=mock_meta, body={})
+        mock_client.search.side_effect = conn_mod.NotFoundError("Index not found")
 
-        with pytest.raises(NotFoundError):
-            search(es=mock_client, index="missing_index")
+        with pytest.raises(conn_mod.NotFoundError):
+            es_search(es=mock_client, index="missing_index")
 
     def test_search_bad_request_error(self):
         """Test search raises BadRequestError for malformed query."""
         mock_client = Mock(spec=Elasticsearch)
-        mock_meta = Mock()
-        mock_meta.status = 400
-        mock_client.search.side_effect = BadRequestError("Malformed query", meta=mock_meta, body={})
+        mock_client.search.side_effect = [conn_mod.BadRequestError("Malformed query")]
 
-        with pytest.raises(BadRequestError):
-            search(es=mock_client, index="test_index", query={"invalid": "query"})
+        with pytest.raises(conn_mod.BadRequestError):
+            es_search(es=mock_client, index="test_index", query={"invalid": "query"})
 
     def test_search_timeout_with_retry(self):
         """Test search retries on timeout."""
         mock_client = Mock(spec=Elasticsearch)
         # First call times out, second succeeds
         mock_client.search.side_effect = [
-            ESTimeoutError("Timeout"),
+            conn_mod.ESTimeoutError("Timeout"),
             {"hits": {"total": {"value": 0}, "hits": []}},
         ]
 
-        result = search(es=mock_client, index="test_index", max_retries=3, retry_delay=0.01)
+        result = es_search(es=mock_client, index="test_index", max_retries=3, retry_delay=0.01)
 
         assert result == {"hits": {"total": {"value": 0}, "hits": []}}
         assert mock_client.search.call_count == 2
@@ -424,12 +446,12 @@ class TestESOperations:
         mock_client = Mock(spec=Elasticsearch)
         # First two calls fail, third succeeds
         mock_client.search.side_effect = [
-            ESConnectionError("Connection failed"),
-            ESConnectionError("Connection failed"),
+            conn_mod.ESConnectionError("Connection failed"),
+            conn_mod.ESConnectionError("Connection failed"),
             {"hits": {"total": {"value": 0}, "hits": []}},
         ]
 
-        result = search(es=mock_client, index="test_index", max_retries=3, retry_delay=0.01)
+        result = es_search(es=mock_client, index="test_index", max_retries=3, retry_delay=0.01)
 
         assert result == {"hits": {"total": {"value": 0}, "hits": []}}
         assert mock_client.search.call_count == 3
@@ -437,22 +459,23 @@ class TestESOperations:
     def test_search_exhausted_retries(self):
         """Test search raises error after exhausting retries."""
         mock_client = Mock(spec=Elasticsearch)
-        mock_client.search.side_effect = ESTimeoutError("Timeout")
+        mock_client.search.side_effect = [
+            conn_mod.ESTimeoutError("Timeout"),
+            conn_mod.ESTimeoutError("Timeout"),
+        ]
 
-        with pytest.raises(ESTimeoutError):
-            search(es=mock_client, index="test_index", max_retries=2, retry_delay=0.01)
+        with pytest.raises(conn_mod.ESTimeoutError):
+            es_search(es=mock_client, index="test_index", max_retries=2, retry_delay=0.01)
 
         assert mock_client.search.call_count == 2
 
     def test_search_request_error_no_retry(self):
         """Test search doesn't retry on RequestError."""
         mock_client = Mock(spec=Elasticsearch)
-        mock_meta = Mock()
-        mock_meta.status = 500
-        mock_client.search.side_effect = RequestError("Request error", meta=mock_meta, body={})
+        mock_client.search.side_effect = [conn_mod.RequestError("Request error")]
 
-        with pytest.raises(RequestError):
-            search(es=mock_client, index="test_index", max_retries=3)
+        with pytest.raises(conn_mod.RequestError):
+            es_search(es=mock_client, index="test_index", max_retries=3)
 
         assert mock_client.search.call_count == 1
 
@@ -515,39 +538,44 @@ class TestAsyncESOperations:
         assert result == "8.10.2"
 
     @pytest.mark.asyncio
-    async def test_search_async_success(self):
-        """Test search_async function with successful query."""
+    async def test_es_search_async_success(self):
+        """Test es_search_async function with successful query."""
         mock_client = Mock(spec=AsyncElasticsearch)
         expected_response = {"hits": {"total": {"value": 1}, "hits": []}}
         mock_client.search = AsyncMock(return_value=expected_response)
 
-        result = await search_async(es=mock_client, index="test_index")
+        result = await es_search_async(es=mock_client, index="test_index")
 
         assert result == expected_response
 
     @pytest.mark.asyncio
-    async def test_search_async_with_retry(self):
-        """Test search_async retries on timeout."""
+    async def test_es_search_async_with_retry(self):
+        """Test es_search_async retries on timeout."""
         mock_client = Mock(spec=AsyncElasticsearch)
         mock_client.search = AsyncMock(
             side_effect=[
-                ESTimeoutError("Timeout"),
+                conn_mod.ESTimeoutError("Timeout"),
                 {"hits": {"total": {"value": 0}, "hits": []}},
             ]
         )
 
-        result = await search_async(es=mock_client, index="test_index", max_retries=3, retry_delay=0.01)
+        result = await es_search_async(es=mock_client, index="test_index", max_retries=3, retry_delay=0.01)
 
         assert result == {"hits": {"total": {"value": 0}, "hits": []}}
         assert mock_client.search.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_search_async_exhausted_retries(self):
-        """Test search_async raises error after exhausting retries."""
+    async def test_es_search_async_exhausted_retries(self):
+        """Test es_search_async raises error after exhausting retries."""
         mock_client = Mock(spec=AsyncElasticsearch)
-        mock_client.search = AsyncMock(side_effect=ESConnectionError("Connection failed"))
+        mock_client.search = AsyncMock(
+            side_effect=[
+                conn_mod.ESConnectionError("Connection failed"),
+                conn_mod.ESConnectionError("Connection failed"),
+            ]
+        )
 
-        with pytest.raises(ESConnectionError):
-            await search_async(es=mock_client, index="test_index", max_retries=2, retry_delay=0.01)
+        with pytest.raises(conn_mod.ESConnectionError):
+            await es_search_async(es=mock_client, index="test_index", max_retries=2, retry_delay=0.01)
 
         assert mock_client.search.call_count == 2

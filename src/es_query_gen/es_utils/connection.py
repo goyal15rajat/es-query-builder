@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import threading
 import time
 from functools import wraps
@@ -10,6 +11,8 @@ from elasticsearch.exceptions import ConnectionTimeout as ESTimeoutError
 from elasticsearch.exceptions import NotFoundError
 from elasticsearch.exceptions import RequestError
 from elasticsearch.exceptions import RequestError as BadRequestError
+
+logger = logging.getLogger(__name__)
 
 
 def requires_es_client(func):
@@ -179,11 +182,13 @@ class ESClientSingleton:
         Returns:
             The created Elasticsearch client instance.
         """
+        logger.info(f"Connecting to Elasticsearch at {scheme}://{host}:{port}")
         client_kwargs: Dict[str, Any] = {"verify_certs": verify_certs}
 
         client_kwargs.update(kwargs)
 
         if connection_string:
+            logger.debug("Using connection string")
             client = Elasticsearch(connection_string, **client_kwargs)
             cls.set(client)
             return client
@@ -192,9 +197,11 @@ class ESClientSingleton:
         auth = None
         if username is not None and password is not None:
             auth = (username, password)
+            logger.debug("Using authentication")
 
         client = Elasticsearch([url], http_auth=auth, **client_kwargs)
         cls.set(client)
+        logger.info("Elasticsearch client connected and set as default")
         return client
 
     @classmethod
@@ -224,11 +231,13 @@ class ESClientSingleton:
         Returns:
             The created AsyncElasticsearch client instance.
         """
+        logger.info(f"Connecting to Elasticsearch (async) at {scheme}://{host}:{port}")
         client_kwargs: Dict[str, Any] = {"verify_certs": verify_certs}
 
         client_kwargs.update(kwargs)
 
         if connection_string:
+            logger.debug("Using connection string (async)")
             client = AsyncElasticsearch(connection_string, **client_kwargs)
             cls.set_async(client)
             return client
@@ -237,9 +246,11 @@ class ESClientSingleton:
         auth = None
         if username is not None and password is not None:
             auth = (username, password)
+            logger.debug("Using authentication (async)")
 
         client = AsyncElasticsearch([url], http_auth=auth, **client_kwargs)
         cls.set_async(client)
+        logger.info("Async Elasticsearch client connected and set as default")
         return client
 
 
@@ -318,9 +329,15 @@ def ping(es: Optional[Elasticsearch] = None) -> bool:
     Returns:
         True if the cluster is reachable, False otherwise.
     """
+    start_time = time.perf_counter()
     try:
-        return bool(es.ping())
-    except Exception:
+        result = bool(es.ping())
+        elapsed = (time.perf_counter() - start_time) * 1000
+        logger.info(f"Elasticsearch ping completed in {elapsed:.2f}ms")
+        return result
+    except Exception as e:
+        elapsed = (time.perf_counter() - start_time) * 1000
+        logger.warning(f"Elasticsearch ping failed after {elapsed:.2f}ms: {e}")
         return False
 
 
@@ -394,7 +411,7 @@ def get_es_version(es: Optional[Elasticsearch] = None) -> Optional[str]:
 
 
 @requires_es_client
-def search(
+def es_search(
     es: Optional[Elasticsearch] = None,
     index: str = "*",
     query: Optional[Dict[str, Any]] = None,
@@ -429,7 +446,9 @@ def search(
     if query is None:
         query = {"match_all": {}}
 
+    logger.debug(f"Searching index '{index}' from offset {from_} with query: {query}")
     last_exception = None
+    start_time = time.perf_counter()
 
     for attempt in range(max_retries):
         try:
@@ -439,26 +458,29 @@ def search(
                 from_=from_,
                 request_timeout=timeout,
             )
+            elapsed = (time.perf_counter() - start_time) * 1000
+            logger.info(f"Search completed in {elapsed:.2f}ms (index='{index}', from={from_}, query={query})")
             return response
         except NotFoundError:
-            # Index doesn't exist — no point retrying
+            logger.error(f"Index '{index}' not found")
             raise
         except BadRequestError as e:
-            # Malformed query — no point retrying
+            logger.error(f"Malformed query: {e}")
             raise
         except (ESTimeoutError, ESConnectionError) as e:
             last_exception = e
             if attempt < max_retries - 1:
-                # Exponential backoff: delay * (2 ^ attempt)
                 backoff = retry_delay * (2**attempt)
+                logger.warning(f"Search failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {backoff}s...")
                 time.sleep(backoff)
             continue
         except RequestError as e:
-            # Other request errors — re-raise
+            logger.error(f"Elasticsearch request error: {e}")
             raise
 
     # All retries exhausted
     if last_exception:
+        logger.error(f"Search failed after {max_retries} attempts: {last_exception}")
         raise last_exception
     # Fallback (shouldn't reach here)
     raise RuntimeError("Search failed after all retries")
@@ -516,9 +538,15 @@ async def ping_async(es: Optional[AsyncElasticsearch] = None) -> bool:
     Returns:
         True if the cluster is reachable, False otherwise.
     """
+    start_time = time.perf_counter()
     try:
-        return bool(await es.ping())
-    except Exception:
+        result = bool(await es.ping())
+        elapsed = (time.perf_counter() - start_time) * 1000
+        logger.info(f"Elasticsearch ping (async) completed in {elapsed:.2f}ms")
+        return result
+    except Exception as e:
+        elapsed = (time.perf_counter() - start_time) * 1000
+        logger.warning(f"Elasticsearch ping (async) failed after {elapsed:.2f}ms: {e}")
         return False
 
 
@@ -572,7 +600,7 @@ async def get_es_version_async(es: Optional[AsyncElasticsearch] = None) -> Optio
 
 
 @requires_es_client_async
-async def search_async(
+async def es_search_async(
     es: Optional[AsyncElasticsearch] = None,
     index: str = "*",
     query: Optional[Dict[str, Any]] = None,
@@ -608,7 +636,9 @@ async def search_async(
     if query is None:
         query = {"match_all": {}}
 
+    logger.debug(f"Searching index '{index}' (async) from offset {from_} size {size} with query: {query}")
     last_exception = None
+    start_time = time.perf_counter()
 
     for attempt in range(max_retries):
         try:
@@ -619,22 +649,28 @@ async def search_async(
                 from_=from_,
                 request_timeout=timeout,
             )
+            elapsed = (time.perf_counter() - start_time) * 1000
+            logger.info(
+                f"Search (async) completed in {elapsed:.2f}ms (index='{index}', from={from_}, size={size}, query={query})"
+            )
             return response
         except NotFoundError:
-            # Index doesn't exist — no point retrying
+            logger.error(f"Index '{index}' not found (async)")
             raise
         except BadRequestError as e:
-            # Malformed query — no point retrying
+            logger.error(f"Malformed query (async): {e}")
             raise
         except (ESTimeoutError, ESConnectionError) as e:
             last_exception = e
             if attempt < max_retries - 1:
-                # Exponential backoff: delay * (2 ^ attempt)
                 backoff = retry_delay * (2**attempt)
+                logger.warning(
+                    f"Async search failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {backoff}s..."
+                )
                 await asyncio.sleep(backoff)
             continue
         except RequestError as e:
-            # Other request errors — re-raise
+            logger.error(f"Elasticsearch request error (async): {e}")
             raise
 
     # All retries exhausted
