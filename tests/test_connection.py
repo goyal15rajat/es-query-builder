@@ -16,12 +16,14 @@ from elasticsearch.exceptions import RequestError as BadRequestError
 from src.es_query_gen.es_utils import connection as conn_mod
 from src.es_query_gen.es_utils.connection import (
     ESClientSingleton,
-    clear_default_es,
-    clear_default_es_async,
+    clear_es_client,
+    clear_es_client_async,
     connect_es,
     connect_es_async,
     es_search,
     es_search_async,
+    get_es_client,
+    get_es_client_async,
     get_es_version,
     get_es_version_async,
     get_index_schema,
@@ -30,8 +32,8 @@ from src.es_query_gen.es_utils.connection import (
     ping_async,
     requires_es_client,
     requires_es_client_async,
-    set_default_es,
-    set_default_es_async,
+    set_es_client,
+    set_es_client_async,
 )
 
 
@@ -201,28 +203,88 @@ class TestConnectionHelpers:
     def test_set_default_es(self):
         """Test set_default_es function."""
         mock_client = Mock(spec=Elasticsearch)
-        set_default_es(mock_client)
+        set_es_client(mock_client)
         assert ESClientSingleton.get() == mock_client
 
     def test_clear_default_es(self):
         """Test clear_default_es function."""
         mock_client = Mock(spec=Elasticsearch)
-        set_default_es(mock_client)
-        clear_default_es()
+        set_es_client(mock_client)
+        clear_es_client()
         assert ESClientSingleton.get() is None
 
     def test_set_default_es_async(self):
         """Test set_default_es_async function."""
         mock_client = Mock(spec=AsyncElasticsearch)
-        set_default_es_async(mock_client)
+        ESClientSingleton.set_async(mock_client)
         assert ESClientSingleton.get_async() == mock_client
 
     def test_clear_default_es_async(self):
         """Test clear_default_es_async function."""
         mock_client = Mock(spec=AsyncElasticsearch)
-        set_default_es_async(mock_client)
-        clear_default_es_async()
+        ESClientSingleton.set_async(mock_client)
+        ESClientSingleton.clear_async()
         assert ESClientSingleton.get_async() is None
+
+    def test_set_es_client_async_helper(self):
+        """Test `set_es_client_async` helper registers async client."""
+        mock_client = Mock(spec=AsyncElasticsearch)
+
+        set_es_client_async(mock_client)
+
+        assert ESClientSingleton.get_async() == mock_client
+
+    def test_get_es_client_async_helper_and_key(self):
+        """Test `get_es_client_async` returns correct client for default and keyed clients."""
+        mock_default = Mock(spec=AsyncElasticsearch)
+        mock_other = Mock(spec=AsyncElasticsearch)
+
+        set_es_client_async(mock_default)
+        set_es_client_async(mock_other, client_key="other_async")
+
+        assert get_es_client_async() == mock_default
+        assert get_es_client_async("other_async") == mock_other
+        assert get_es_client_async("missing") is None
+
+    def test_clear_es_client_async_with_key(self):
+        """Test `clear_es_client_async` removes only the specified async client key."""
+        mock_a = Mock(spec=AsyncElasticsearch)
+        mock_b = Mock(spec=AsyncElasticsearch)
+
+        set_es_client_async(mock_a, client_key="a_async")
+        set_es_client_async(mock_b, client_key="b_async")
+
+        clear_es_client_async(client_key="a_async")
+
+        assert get_es_client_async("a_async") is None
+        assert get_es_client_async("b_async") == mock_b
+
+    def test_get_es_client_default_and_key(self):
+        """Test get_es_client returns correct client for default and keyed clients."""
+        mock_client_default = Mock(spec=Elasticsearch)
+        mock_client_other = Mock(spec=Elasticsearch)
+
+        # Set default and a named client
+        set_es_client(mock_client_default)
+        set_es_client(mock_client_other, client_key="other")
+
+        assert get_es_client() == mock_client_default
+        assert get_es_client("other") == mock_client_other
+        assert get_es_client("missing") is None
+
+    def test_clear_es_client_with_key(self):
+        """Test clearing a specific client key removes only that client."""
+        mock_client_a = Mock(spec=Elasticsearch)
+        mock_client_b = Mock(spec=Elasticsearch)
+
+        set_es_client(mock_client_a, client_key="a")
+        set_es_client(mock_client_b, client_key="b")
+
+        # Clear only key 'a'
+        clear_es_client(client_key="a")
+
+        assert get_es_client("a") is None
+        assert get_es_client("b") == mock_client_b
 
 
 class TestDecorators:

@@ -5,15 +5,21 @@ import logging
 from .builder import QueryBuilder
 from .es_utils.connection import (
     ESClientSingleton,
+    clear_es_client,
+    clear_es_client_async,
     connect_es,
     connect_es_async,
     es_search,
     es_search_async,
+    get_es_client,
+    get_es_client_async,
     get_es_version,
     get_index_schema,
     get_index_schema_async,
     get_index_settings,
     get_index_settings_async,
+    set_es_client,
+    set_es_client_async,
 )
 from .es_utils.schema_validator import validate_index
 from .parser import ESResponseParser
@@ -33,6 +39,12 @@ __all__ = [
     "get_index_schema_async",
     "get_index_settings",
     "get_index_settings_async",
+    "set_es_client",
+    "get_es_client",
+    "clear_es_client",
+    "set_es_client_async",
+    "get_es_client_async",
+    "clear_es_client_async",
     # Schema validation
     "validate_index",
 ]
