@@ -223,7 +223,7 @@ class ESClientSingleton:
 
         client = Elasticsearch([url], http_auth=auth, **client_kwargs)
         cls.set(client, client_key=client_key)
-        logger.info("Elasticsearch client connected and set as default")
+        logger.info(f"Elasticsearch client connected and set as {client_key}")
         return client
 
     @classmethod
@@ -274,7 +274,7 @@ class ESClientSingleton:
 
         client = AsyncElasticsearch([url], http_auth=auth, **client_kwargs)
         cls.set_async(client, client_key=client_key)
-        logger.info("Async Elasticsearch client connected and set as default")
+        logger.info(f"Async Elasticsearch client connected and set as {client_key}")
         return client
 
 
