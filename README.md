@@ -1,6 +1,8 @@
 # es-query-gen
 [![Tests](https://github.com/goyal15rajat/es-query-builder/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/goyal15rajat/es-query-builder/actions/workflows/tests.yml)
 
+[Documentation](https://es-query-builder.readthedocs.io/en/latest/index.html)
+
 **A no-code Elasticsearch query generator** - Build complex ES queries from simple Python dictionaries using typed Pydantic models.
 
 ## Overview
