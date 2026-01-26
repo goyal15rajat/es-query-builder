@@ -14,6 +14,12 @@ This library provides four main components:
 3. **Response Parser** - Parse complex Elasticsearch responses including nested aggregations into clean Python objects
 4. **Schema Validator** - Validate Elasticsearch index schemas to ensure settings and field mappings match expected configurations
 
+### Notes
+
+- **Helper rename:** The module-level client helpers were renamed to `set_es_client`, `get_es_client`, and `clear_es_client` for synchronous clients, with async equivalents `set_es_client_async`, `get_es_client_async`, and `clear_es_client_async`.
+- **Client registry:** The client registry supports storing clients by key. A registry entry may hold either a synchronous `Elasticsearch` or an `AsyncElasticsearch` instance; use the matching helper or async-prefixed methods when interacting with the client.
+- **Async methods disclaimer:** Async helpers and operations use an `_async` suffix (for example `connect_es_async`, `ping_async`, `es_search_async`, `get_index_schema_async`). Always `await` these async-prefixed functions and do not call them from synchronous code.
+
 ## Features
 
 - 🎯 **No-code query building** - Define queries using simple Python dicts or JSON

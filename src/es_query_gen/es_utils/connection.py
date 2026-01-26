@@ -100,60 +100,80 @@ class ESClientSingleton:
     """
 
     _lock = threading.Lock()
-    _client: Optional[Elasticsearch] = None
-    _async_client: Optional[AsyncElasticsearch] = None
+    _clients: Dict[str, Elasticsearch] = {}
+    _async_clients: Dict[str, AsyncElasticsearch] = {}
 
     @classmethod
-    def set(cls, client: Elasticsearch) -> None:
+    def set(cls, client: Elasticsearch, client_key: str = "default") -> None:
         """Set the default synchronous Elasticsearch client.
 
         Args:
             client: The Elasticsearch client instance to set as default.
+            client_key: Key to identify the synchronous client (default: 'default').
         """
         with cls._lock:
-            cls._client = client
+            cls._clients[client_key] = client
 
     @classmethod
-    def get(cls) -> Optional[Elasticsearch]:
+    def get(cls, client_key: str = "default") -> Optional[Elasticsearch]:
         """Get the default synchronous Elasticsearch client.
+
+        Args:
+            client_key: Key to identify the synchronous client (default: 'default').
 
         Returns:
             The registered Elasticsearch client or None if not set.
         """
         with cls._lock:
-            return cls._client
+            return cls._clients.get(client_key)
 
     @classmethod
-    def clear(cls) -> None:
-        """Clear the default synchronous Elasticsearch client."""
+    def clear(cls, client_key: Optional[str] = None) -> None:
+        """Clear the default synchronous Elasticsearch client.
+        Args:
+            client_key: Key to identify the synchronous client (default: None, clears all).
+        """
         with cls._lock:
-            cls._client = None
+            if client_key:
+                cls._clients.pop(client_key, None)
+            else:
+                cls._clients = {}
 
     @classmethod
-    def set_async(cls, client: AsyncElasticsearch) -> None:
+    def set_async(cls, client: AsyncElasticsearch, client_key: str = "default") -> None:
         """Set the default asynchronous Elasticsearch client.
 
         Args:
             client: The AsyncElasticsearch client instance to set as default.
+            client_key: Key to identify the asynchronous client (default: 'default').
         """
         with cls._lock:
-            cls._async_client = client
+            cls._async_clients[client_key] = client
 
     @classmethod
-    def get_async(cls) -> Optional[AsyncElasticsearch]:
+    def get_async(cls, client_key: str = "default") -> Optional[AsyncElasticsearch]:
         """Get the default asynchronous Elasticsearch client.
+
+        Args:
+            client_key: Key to identify the asynchronous client (default: 'default').
 
         Returns:
             The registered AsyncElasticsearch client or None if not set.
         """
         with cls._lock:
-            return cls._async_client
+            return cls._async_clients.get(client_key)
 
     @classmethod
-    def clear_async(cls) -> None:
-        """Clear the default asynchronous Elasticsearch client."""
+    def clear_async(cls, client_key: Optional[str] = None) -> None:
+        """Clear the default asynchronous Elasticsearch client.
+        Args:
+            client_key: Key to identify the asynchronous client (default: None, clears all).
+        """
         with cls._lock:
-            cls._async_client = None
+            if client_key:
+                cls._async_clients.pop(client_key, None)
+            else:
+                cls._async_clients = {}
 
     @classmethod
     def connect(
@@ -165,6 +185,7 @@ class ESClientSingleton:
         username: Optional[str] = None,
         password: Optional[str] = None,
         verify_certs: bool = True,
+        client_key: str = "default",
         **kwargs: Any,
     ) -> Elasticsearch:
         """Create and register a synchronous Elasticsearch client as default.
@@ -177,6 +198,7 @@ class ESClientSingleton:
             username: Username for authentication (optional).
             password: Password for authentication (optional).
             verify_certs: Whether to verify SSL certificates (default: True).
+            client_key: Key to identify the synchronous client (default: 'default').
             kwargs: Additional arguments to pass to Elasticsearch client.
 
         Returns:
@@ -190,7 +212,7 @@ class ESClientSingleton:
         if connection_string:
             logger.debug("Using connection string")
             client = Elasticsearch(connection_string, **client_kwargs)
-            cls.set(client)
+            cls.set(client, client_key=client_key)
             return client
 
         url = f"{scheme}://{host}:{port}"
@@ -200,7 +222,7 @@ class ESClientSingleton:
             logger.debug("Using authentication")
 
         client = Elasticsearch([url], http_auth=auth, **client_kwargs)
-        cls.set(client)
+        cls.set(client, client_key=client_key)
         logger.info("Elasticsearch client connected and set as default")
         return client
 
@@ -214,6 +236,7 @@ class ESClientSingleton:
         username: Optional[str] = None,
         password: Optional[str] = None,
         verify_certs: bool = True,
+        client_key: str = "default",
         **kwargs: Any,
     ) -> AsyncElasticsearch:
         """Create and register an asynchronous Elasticsearch client as default.
@@ -226,6 +249,7 @@ class ESClientSingleton:
             username: Username for authentication (optional).
             password: Password for authentication (optional).
             verify_certs: Whether to verify SSL certificates (default: True).
+            client_key: Key to identify the asynchronous client (default: 'default').
             kwargs: Additional arguments to pass to AsyncElasticsearch client.
 
         Returns:
@@ -239,7 +263,7 @@ class ESClientSingleton:
         if connection_string:
             logger.debug("Using connection string (async)")
             client = AsyncElasticsearch(connection_string, **client_kwargs)
-            cls.set_async(client)
+            cls.set_async(client, client_key=client_key)
             return client
 
         url = f"{scheme}://{host}:{port}"
@@ -249,7 +273,7 @@ class ESClientSingleton:
             logger.debug("Using authentication (async)")
 
         client = AsyncElasticsearch([url], http_auth=auth, **client_kwargs)
-        cls.set_async(client)
+        cls.set_async(client, client_key=client_key)
         logger.info("Async Elasticsearch client connected and set as default")
         return client
 
@@ -262,6 +286,7 @@ def connect_es(
     username: Optional[str] = None,
     password: Optional[str] = None,
     verify_certs: bool = True,
+    client_key: str = "default",
     **kwargs: Any,
 ) -> Elasticsearch:
     """Create and return a synchronous Elasticsearch client and register it as default.
@@ -274,6 +299,7 @@ def connect_es(
         username: Username for authentication (optional).
         password: Password for authentication (optional).
         verify_certs: Whether to verify SSL certificates (default: True).
+        client_key: Key to identify the synchronous client (default: 'default').
         kwargs: Additional arguments to pass to Elasticsearch client.
 
     Returns:
@@ -287,36 +313,64 @@ def connect_es(
         username=username,
         password=password,
         verify_certs=verify_certs,
+        client_key=client_key,
         **kwargs,
     )
 
 
-def set_default_es(es: Elasticsearch) -> None:
+def set_es_client(es: Elasticsearch, client_key: str = "default") -> None:
     """Set the module-level default synchronous Elasticsearch client.
 
     Args:
         es: The Elasticsearch client instance to set as default.
+        client_key: Key to identify the synchronous client (default: 'default').
     """
-    ESClientSingleton.set(es)
+    ESClientSingleton.set(es, client_key=client_key)
 
 
-def clear_default_es() -> None:
-    """Clear the module-level default synchronous Elasticsearch client."""
-    ESClientSingleton.clear()
+def get_es_client(client_key: str = "default") -> Optional[Elasticsearch]:
+    """Get the module-level default synchronous Elasticsearch client.
+
+    Args:
+        client_key: Key to identify the synchronous client (default: 'default').
+    """
+    return ESClientSingleton.get(client_key=client_key)
 
 
-def set_default_es_async(es: AsyncElasticsearch) -> None:
+def clear_es_client(client_key: str = "default") -> None:
+    """Clear the module-level default synchronous Elasticsearch client.
+    Args:
+        client_key: Key to identify the synchronous client (default: 'default').
+    """
+    ESClientSingleton.clear(client_key=client_key)
+
+
+def set_es_client_async(es: AsyncElasticsearch, client_key: str = "default") -> None:
     """Set the module-level default asynchronous Elasticsearch client.
 
     Args:
         es: The AsyncElasticsearch client instance to set as default.
+        client_key: Key to identify the asynchronous client (default: 'default').
     """
-    ESClientSingleton.set_async(es)
+    ESClientSingleton.set_async(es, client_key=client_key)
 
 
-def clear_default_es_async() -> None:
-    """Clear the module-level default asynchronous Elasticsearch client."""
-    ESClientSingleton.clear_async()
+def get_es_client_async(client_key: str = "default") -> Optional[AsyncElasticsearch]:
+    """Get the module-level default asynchronous Elasticsearch client.
+
+    Args:
+        client_key: Key to identify the asynchronous client (default: 'default').
+    """
+    return ESClientSingleton.get_async(client_key=client_key)
+
+
+def clear_es_client_async(client_key: str = "default") -> None:
+    """Clear the module-level default asynchronous Elasticsearch client.
+
+    Args:
+        client_key: Key to identify the asynchronous client (default: 'default').
+    """
+    ESClientSingleton.clear_async(client_key=client_key)
 
 
 @requires_es_client
@@ -499,6 +553,7 @@ async def connect_es_async(
     username: Optional[str] = None,
     password: Optional[str] = None,
     verify_certs: bool = True,
+    client_key: str = "default",
     **kwargs: Any,
 ) -> AsyncElasticsearch:
     """Create and return an asynchronous Elasticsearch client and register it as default.
@@ -524,6 +579,7 @@ async def connect_es_async(
         username=username,
         password=password,
         verify_certs=verify_certs,
+        client_key=client_key,
         **kwargs,
     )
 
