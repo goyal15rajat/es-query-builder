@@ -18,6 +18,8 @@ from .es_utils.connection import (
     get_index_schema_async,
     get_index_settings,
     get_index_settings_async,
+    ping,
+    ping_async,
     set_es_client,
     set_es_client_async,
 )
@@ -45,6 +47,8 @@ __all__ = [
     "set_es_client_async",
     "get_es_client_async",
     "clear_es_client_async",
+    "ping",
+    "ping_async",
     # Schema validation
     "validate_index",
 ]
