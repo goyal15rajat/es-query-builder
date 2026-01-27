@@ -176,6 +176,62 @@ class ESClientSingleton:
                 cls._async_clients = {}
 
     @classmethod
+    def close(cls, client_key: Optional[str] = None) -> None:
+        """Close Elasticsearch client connection(s).
+
+        If client_key is provided, closes that specific client.
+        Otherwise, closes all registered synchronous clients.
+
+        Args:
+            client_key: Key to identify the synchronous client (default: None, closes all).
+        """
+        with cls._lock:
+            clients_to_close = {}
+            if client_key:
+                if client_key in cls._clients:
+                    clients_to_close[client_key] = cls._clients[client_key]
+            else:
+                clients_to_close = dict(cls._clients)
+
+        for key, client in clients_to_close.items():
+            try:
+                client.close()
+                logger.info(f"Closed synchronous Elasticsearch client '{key}'")
+            except Exception as e:
+                logger.warning(f"Error closing synchronous client '{key}': {e}")
+            finally:
+                with cls._lock:
+                    cls._clients.pop(key, None)
+
+    @classmethod
+    async def close_async(cls, client_key: Optional[str] = None) -> None:
+        """Close asynchronous Elasticsearch client connection(s).
+
+        If client_key is provided, closes that specific async client.
+        Otherwise, closes all registered asynchronous clients.
+
+        Args:
+            client_key: Key to identify the asynchronous client (default: None, closes all).
+        """
+        with cls._lock:
+            clients_to_close = {}
+            if client_key:
+                if client_key in cls._async_clients:
+                    clients_to_close[client_key] = cls._async_clients[client_key]
+            else:
+                clients_to_close = dict(cls._async_clients)
+
+        for key, client in clients_to_close.items():
+            try:
+                await client.close()
+                logger.info(f"Closed asynchronous Elasticsearch client '{key}'")
+            except Exception as e:
+                logger.warning(f"Error closing asynchronous client '{key}': {e}")
+            finally:
+                with cls._lock:
+                    cls._async_clients.pop(key, None)
+
+    @classmethod
     def connect(
         cls,
         connection_string: Optional[str] = None,
@@ -371,6 +427,40 @@ def clear_es_client_async(client_key: str = "default") -> None:
         client_key: Key to identify the asynchronous client (default: 'default').
     """
     ESClientSingleton.clear_async(client_key=client_key)
+
+
+def close_es_client(client_key: Optional[str] = "default") -> None:
+    """Close Elasticsearch client connection(s).
+
+    If client_key is provided, closes that specific client.
+    Otherwise, closes all registered synchronous clients.
+
+    Args:
+        client_key: Key to identify the synchronous client (default: 'default').
+    """
+    ESClientSingleton.close(client_key=client_key)
+
+
+async def close_es_client_async(client_key: Optional[str] = "default") -> None:
+    """Close asynchronous Elasticsearch client connection(s).
+
+    If client_key is provided, closes that specific async client.
+    Otherwise, closes all registered asynchronous clients.
+
+    Args:
+        client_key: Key to identify the asynchronous client (default: 'default').
+    """
+    await ESClientSingleton.close_async(client_key=client_key)
+
+
+def close_all_es_clients() -> None:
+    """Close all synchronous Elasticsearch client connections."""
+    ESClientSingleton.close(client_key=None)
+
+
+async def close_all_es_clients_async() -> None:
+    """Close all asynchronous Elasticsearch client connections."""
+    await ESClientSingleton.close_async(client_key=None)
 
 
 @requires_es_client
@@ -662,7 +752,7 @@ async def es_search_async(
     query: Optional[Dict[str, Any]] = None,
     size: int = 10,
     from_: int = 0,
-    timeout: str = "10s",
+    timeout: int = 10,
     max_retries: int = 3,
     retry_delay: float = 0.5,
 ) -> Dict[str, Any]:
@@ -674,7 +764,7 @@ async def es_search_async(
         query: Elasticsearch query dict (default: empty match_all query).
         size: Number of results to return (default: 10).
         ``from_``: Offset for pagination (default: 0).
-        timeout: Server-side timeout (default: "10s").
+        timeout: Server-side timeout in seconds (default: 10).
         max_retries: Number of retry attempts (default: 3).
         retry_delay: Initial delay between retries in seconds (default: 0.5, with exponential backoff).
 
@@ -700,7 +790,7 @@ async def es_search_async(
         try:
             response = await es.search(
                 index=index,
-                query=query,
+                body=query,
                 size=size,
                 from_=from_,
                 request_timeout=timeout,

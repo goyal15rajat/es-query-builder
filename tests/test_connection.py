@@ -18,6 +18,10 @@ from src.es_query_gen.es_utils.connection import (
     ESClientSingleton,
     clear_es_client,
     clear_es_client_async,
+    close_all_es_clients,
+    close_all_es_clients_async,
+    close_es_client,
+    close_es_client_async,
     connect_es,
     connect_es_async,
     es_search,
@@ -285,6 +289,135 @@ class TestConnectionHelpers:
 
         assert get_es_client("a") is None
         assert get_es_client("b") == mock_client_b
+
+    def test_close_es_client_default(self):
+        """Test closing default synchronous client."""
+        mock_client = Mock(spec=Elasticsearch)
+        mock_client.close = Mock()
+
+        set_es_client(mock_client)
+        assert get_es_client() == mock_client
+
+        close_es_client()
+
+        mock_client.close.assert_called_once()
+        assert get_es_client() is None
+
+    def test_close_es_client_with_key(self):
+        """Test closing a specific synchronous client by key."""
+        mock_client_a = Mock(spec=Elasticsearch)
+        mock_client_a.close = Mock()
+        mock_client_b = Mock(spec=Elasticsearch)
+        mock_client_b.close = Mock()
+
+        set_es_client(mock_client_a, client_key="a")
+        set_es_client(mock_client_b, client_key="b")
+
+        close_es_client(client_key="a")
+
+        mock_client_a.close.assert_called_once()
+        mock_client_b.close.assert_not_called()
+        assert get_es_client("a") is None
+        assert get_es_client("b") == mock_client_b
+
+    def test_close_es_client_nonexistent(self):
+        """Test closing a nonexistent client doesn't raise error."""
+        close_es_client(client_key="nonexistent")  # Should not raise
+
+    def test_close_es_client_error_handling(self):
+        """Test close_es_client handles errors during close."""
+        mock_client = Mock(spec=Elasticsearch)
+        mock_client.close = Mock(side_effect=Exception("Close failed"))
+
+        set_es_client(mock_client)
+
+        close_es_client()  # Should not raise
+
+        assert get_es_client() is None
+
+    def test_close_all_es_clients(self):
+        """Test closing all synchronous clients."""
+        mock_client_a = Mock(spec=Elasticsearch)
+        mock_client_a.close = Mock()
+        mock_client_b = Mock(spec=Elasticsearch)
+        mock_client_b.close = Mock()
+
+        set_es_client(mock_client_a, client_key="a")
+        set_es_client(mock_client_b, client_key="b")
+
+        close_all_es_clients()
+
+        mock_client_a.close.assert_called_once()
+        mock_client_b.close.assert_called_once()
+        assert get_es_client("a") is None
+        assert get_es_client("b") is None
+
+    @pytest.mark.asyncio
+    async def test_close_es_client_async_default(self):
+        """Test closing default asynchronous client."""
+        mock_client = Mock(spec=AsyncElasticsearch)
+        mock_client.close = AsyncMock()
+
+        set_es_client_async(mock_client)
+        assert get_es_client_async() == mock_client
+
+        await close_es_client_async()
+
+        mock_client.close.assert_called_once()
+        assert get_es_client_async() is None
+
+    @pytest.mark.asyncio
+    async def test_close_es_client_async_with_key(self):
+        """Test closing a specific asynchronous client by key."""
+        mock_client_a = Mock(spec=AsyncElasticsearch)
+        mock_client_a.close = AsyncMock()
+        mock_client_b = Mock(spec=AsyncElasticsearch)
+        mock_client_b.close = AsyncMock()
+
+        set_es_client_async(mock_client_a, client_key="a")
+        set_es_client_async(mock_client_b, client_key="b")
+
+        await close_es_client_async(client_key="a")
+
+        mock_client_a.close.assert_called_once()
+        mock_client_b.close.assert_not_called()
+        assert get_es_client_async("a") is None
+        assert get_es_client_async("b") == mock_client_b
+
+    @pytest.mark.asyncio
+    async def test_close_es_client_async_nonexistent(self):
+        """Test closing a nonexistent async client doesn't raise error."""
+        await close_es_client_async(client_key="nonexistent")  # Should not raise
+
+    @pytest.mark.asyncio
+    async def test_close_es_client_async_error_handling(self):
+        """Test close_es_client_async handles errors during close."""
+        mock_client = Mock(spec=AsyncElasticsearch)
+        mock_client.close = AsyncMock(side_effect=Exception("Close failed"))
+
+        set_es_client_async(mock_client)
+
+        await close_es_client_async()  # Should not raise
+
+        assert get_es_client_async() is None
+
+    @pytest.mark.asyncio
+    async def test_close_all_es_clients_async(self):
+        """Test closing all asynchronous clients."""
+        mock_client_a = Mock(spec=AsyncElasticsearch)
+        mock_client_a.close = AsyncMock()
+        mock_client_b = Mock(spec=AsyncElasticsearch)
+        mock_client_b.close = AsyncMock()
+
+        set_es_client_async(mock_client_a, client_key="a")
+        set_es_client_async(mock_client_b, client_key="b")
+
+        await close_all_es_clients_async()
+
+        mock_client_a.close.assert_called_once()
+        mock_client_b.close.assert_called_once()
+        assert get_es_client_async("a") is None
+        assert get_es_client_async("b") is None
 
 
 class TestDecorators:
