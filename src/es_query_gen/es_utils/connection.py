@@ -570,7 +570,6 @@ def es_search(
         es: Elasticsearch client (injected by @requires_es_client or passed explicitly).
         index: Index name or pattern (default: "*" for all indices).
         query: Elasticsearch query dict (default: empty match_all query).
-        size: Number of results to return (default: 10).
         ``from_``: Offset for pagination (default: 0).
         timeout: Server-side timeout (default: "10s").
         max_retries: Number of retry attempts (default: 3).
@@ -750,7 +749,6 @@ async def es_search_async(
     es: Optional[AsyncElasticsearch] = None,
     index: str = "*",
     query: Optional[Dict[str, Any]] = None,
-    size: int = 10,
     from_: int = 0,
     timeout: int = 10,
     max_retries: int = 3,
@@ -762,7 +760,6 @@ async def es_search_async(
         es: Async Elasticsearch client (injected by @requires_es_client_async or passed explicitly).
         index: Index name or pattern (default: "*" for all indices).
         query: Elasticsearch query dict (default: empty match_all query).
-        size: Number of results to return (default: 10).
         ``from_``: Offset for pagination (default: 0).
         timeout: Server-side timeout in seconds (default: 10).
         max_retries: Number of retry attempts (default: 3).
@@ -782,7 +779,7 @@ async def es_search_async(
     if query is None:
         query = {"match_all": {}}
 
-    logger.debug(f"Searching index '{index}' (async) from offset {from_} size {size} with query: {query}")
+    logger.debug(f"Searching index '{index}' (async) from offset {from_} with query: {query}")
     last_exception = None
     start_time = time.perf_counter()
 
@@ -791,14 +788,11 @@ async def es_search_async(
             response = await es.search(
                 index=index,
                 body=query,
-                size=size,
                 from_=from_,
                 request_timeout=timeout,
             )
             elapsed = (time.perf_counter() - start_time) * 1000
-            logger.info(
-                f"Search (async) completed in {elapsed:.2f}ms (index='{index}', from={from_}, size={size}, query={query})"
-            )
+            logger.info(f"Search (async) completed in {elapsed:.2f}ms (index='{index}', from={from_}, query={query})")
             return response
         except NotFoundError:
             logger.error(f"Index '{index}' not found (async)")
