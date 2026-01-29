@@ -549,8 +549,9 @@ class TestESOperations:
 
         result = get_index_schema(index="test_index", es=mock_client)
 
-        assert "mappings" in result
-        assert "settings" in result
+        assert "test_index" in result
+        assert "mappings" in result["test_index"]
+        assert "settings" in result["test_index"]
         mock_indices.get_mapping.assert_called_once_with(index="test_index")
         mock_indices.get_settings.assert_called_once_with(index="test_index")
 
@@ -715,12 +716,14 @@ class TestAsyncESOperations:
         mock_client = Mock(spec=AsyncElasticsearch)
         mock_indices = Mock()
         mock_client.indices = mock_indices
-        expected_schema = {"test_index": {"mappings": {}}}
-        mock_indices.get_mapping = AsyncMock(return_value=expected_schema)
+        expected_mapping = {"test_index": {"mappings": {}}}
+        expected_settings = {"test_index": {"settings": {}}}
+        mock_indices.get_mapping = AsyncMock(return_value=expected_mapping)
+        mock_indices.get_settings = AsyncMock(return_value=expected_settings)
 
         result = await get_index_schema_async(es=mock_client, index="test_index")
 
-        assert result == expected_schema
+        assert result == {"test_index": {**expected_mapping["test_index"], **expected_settings["test_index"]}}
 
     @pytest.mark.asyncio
     async def test_get_es_version_async(self):

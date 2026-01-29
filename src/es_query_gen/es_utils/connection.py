@@ -491,18 +491,19 @@ def get_index_schema(index: str, es: Optional[Elasticsearch] = None) -> Dict[str
 
     Args:
         es: Elasticsearch client (auto-injected if not provided).
-        index: The name of the index to retrieve the schema for.
+        index: The name of the index or alias to retrieve the schema for.
 
     Returns:
-        Dictionary containing the index mapping/schema.
+        Dictionary containing the index mapping/schema keyed by index name.
 
     Raises:
         NotFoundError: If the index does not exist.
     """
-    return {
-        **get_index_mapping(index=index, es=es)[index],
-        **get_index_settings(index=index, es=es)[index],
-    }
+
+    es_mapping = get_index_mapping(index=index, es=es)
+    es_settings = get_index_settings(index=index, es=es)
+
+    return {index: {**es_mapping[index], **es_settings[index]} for index in es_mapping.keys()}
 
 
 @requires_es_client
@@ -701,15 +702,18 @@ async def get_index_schema_async(es: Optional[AsyncElasticsearch] = None, index:
 
     Args:
         es: AsyncElasticsearch client (auto-injected if not provided).
-        index: The name of the index to retrieve the schema for.
+        index: The name of the index or alias to retrieve the schema for.
 
     Returns:
-        Dictionary containing the index mapping/schema.
+        Dictionary containing the index mapping/schema keyed by index name.
 
     Raises:
         NotFoundError: If the index does not exist.
     """
-    return await es.indices.get_mapping(index=index)
+    es_mapping = await es.indices.get_mapping(index=index)
+    es_settings = await es.indices.get_settings(index=index)
+
+    return {index: {**es_mapping[index], **es_settings[index]} for index in es_mapping.keys()}
 
 
 @requires_es_client_async

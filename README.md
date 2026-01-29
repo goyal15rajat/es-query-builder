@@ -244,20 +244,21 @@ expected_schema = {
     }
 }
 
-# Validate against live index
-result = validate_index("my_index", expected_schema, es=client)
+# Validate against live index or alias
+results = validate_index("my_index_or_alias", expected_schema, es=client)
 
-if not result.is_valid:
-    print(result)  # Detailed error report
-    # Output:
-    # Schema Validation: FAILED
-    #
-    # Errors (2):
-    #   - Missing field in schema: email
-    #   - Type mismatch for field 'age': expected 'integer', got 'text'
-    #
-    # Missing Fields (1):
-    #   - email
+for index_name, result in results.items():
+    if not result.is_valid:
+        print(index_name, result)  # Detailed error report per index
+        # Output:
+        # Schema Validation: FAILED
+        #
+        # Errors (2):
+        #   - Missing field in schema: email
+        #   - Type mismatch for field 'age': expected 'integer', got 'text'
+        #
+        # Missing Fields (1):
+        #   - email
 
 # Use custom validator with options
 validator = SchemaValidator(strict_mode=False, ignore_extra_fields=True)
