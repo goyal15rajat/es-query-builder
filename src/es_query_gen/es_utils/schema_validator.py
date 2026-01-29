@@ -165,7 +165,7 @@ class SchemaValidator:
         es: Optional[Elasticsearch] = None,
         validate_settings: bool = True,
         validate_mappings: bool = True,
-    ) -> SchemaValidationResult:
+    ) -> Dict[str, SchemaValidationResult]:
         """Validate that an Elasticsearch index matches expected schema.
 
         Args:
@@ -176,7 +176,7 @@ class SchemaValidator:
             validate_mappings (bool): Whether to validate field mappings.
 
         Returns:
-            SchemaValidationResult: Detailed validation results.
+            Dict[str, SchemaValidationResult]: Validation results keyed by index name.
 
         Example:
 
@@ -192,28 +192,35 @@ class SchemaValidator:
                             }
                         }
                     }
-                    result = validator.validate_index("my_index", expected, es=client)
-                    if not result.is_valid:
-                        print(result)
+                    results = validator.validate_index("my_index", expected, es=client)
+                    for index_name, result in results.items():
+                        if not result.is_valid:
+                            print(index_name, result)
 
         """
         logger.info(f"Validating schema for index '{index}'")
         # Get actual schema from Elasticsearch
         actual_schema = get_index_schema(index=index, es=es)
 
-        result = self.validate_schema(
-            expected_schema=expected_schema,
-            actual_schema=actual_schema,
-            validate_settings=validate_settings,
-            validate_mappings=validate_mappings,
-        )
+        validation_results: Dict[str, SchemaValidationResult] = {}
 
-        if result.is_valid:
-            logger.info(f"Schema validation passed for index '{index}'")
-        else:
-            logger.warning(f"Schema validation failed for index '{index}' with {len(result.errors)} errors")
+        for index_name, actual_schema in actual_schema.items():
+            result = self.validate_schema(
+                expected_schema=expected_schema,
+                actual_schema=actual_schema,
+                validate_settings=validate_settings,
+                validate_mappings=validate_mappings,
+            )
+            logger.debug(f"Actual schema for index '{index_name}': {actual_schema}")
 
-        return result
+            if result.is_valid:
+                logger.info(f"Schema validation passed for index '{index}'")
+            else:
+                logger.warning(f"Schema validation failed for index '{index}' with {len(result.errors)} errors")
+
+            validation_results[index_name] = result
+
+        return validation_results
 
     def _validate_settings(
         self,
@@ -365,7 +372,7 @@ def validate_index(
     es: Optional[Elasticsearch] = None,
     strict_mode: bool = True,
     ignore_extra_fields: bool = False,
-) -> SchemaValidationResult:
+) -> Dict[str, SchemaValidationResult]:
     """Convenience function to validate an Elasticsearch index.
 
     Args:
@@ -376,7 +383,7 @@ def validate_index(
         ignore_extra_fields (bool): If True, don't report extra fields.
 
     Returns:
-        SchemaValidationResult: Detailed validation results.
+        Dict[str, SchemaValidationResult]: Validation results keyed by index name.
 
     Example:
 
@@ -393,9 +400,10 @@ def validate_index(
                     }
                 }
             }
-            result = validate_index("my_index", expected, es=client)
-            if not result.is_valid:
-                print(result)
+            results = validate_index("my_index", expected, es=client)
+            for index_name, result in results.items():
+                if not result.is_valid:
+                    print(index_name, result)
 
     """
     validator = SchemaValidator(strict_mode=strict_mode, ignore_extra_fields=ignore_extra_fields)

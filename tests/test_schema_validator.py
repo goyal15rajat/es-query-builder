@@ -273,8 +273,10 @@ class TestSchemaValidator:
         ESClientSingleton.set(mock_es_client)
 
         try:
-            result = validator.validate_index("test_index", expected)
-            assert result.is_valid is True
+            results = validator.validate_index("test_index", expected)
+            assert isinstance(results, dict)
+            assert "test_index" in results
+            assert results["test_index"].is_valid is True
         finally:
             ESClientSingleton.clear()
 
@@ -312,9 +314,11 @@ class TestValidateFunctions:
         ESClientSingleton.set(mock_es_client)
 
         try:
-            result = validate_index("test_index", expected)
-            assert isinstance(result, SchemaValidationResult)
-            assert result.is_valid is True
+            results = validate_index("test_index", expected)
+            assert isinstance(results, dict)
+            assert "test_index" in results
+            assert isinstance(results["test_index"], SchemaValidationResult)
+            assert results["test_index"].is_valid is True
         finally:
             ESClientSingleton.clear()
 
@@ -333,8 +337,10 @@ class TestValidateFunctions:
         ESClientSingleton.set(mock_es_client)
 
         try:
-            result = validate_index("test_index", expected, strict_mode=False, ignore_extra_fields=True)
-            assert result.is_valid is True
+            results = validate_index("test_index", expected, strict_mode=False, ignore_extra_fields=True)
+            assert isinstance(results, dict)
+            assert "test_index" in results
+            assert results["test_index"].is_valid is True
         finally:
             ESClientSingleton.clear()
 
