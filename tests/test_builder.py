@@ -21,6 +21,22 @@ class TestQueryBuilder:
         builder = QueryBuilder()
         assert builder.query == {"query": {"bool": {}}}
 
+    def test_create_term_query_with_scalar_value(self):
+        """Test _create_term_query returns a term query for scalar values."""
+        builder = QueryBuilder()
+
+        result = builder._create_term_query("status", "active")
+
+        assert result == {"term": {"status": "active"}}
+
+    def test_create_term_query_with_list_value(self):
+        """Test _create_term_query returns a terms query for list values."""
+        builder = QueryBuilder()
+
+        result = builder._create_term_query("status", ["active", "pending"])
+
+        assert result == {"terms": {"status": ["active", "pending"]}}
+
     def test_equals_filter(self):
         """Test _equals_filter adds term queries to must clause."""
         builder = QueryBuilder()
