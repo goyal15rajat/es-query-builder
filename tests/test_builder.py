@@ -104,6 +104,38 @@ class TestQueryBuilder:
         builder._range_filter([])
         assert "must" not in builder.query["query"]["bool"]
 
+    def test_exists_filter(self):
+        """Test _add_exists_filter adds exists queries to must clause."""
+        builder = QueryBuilder()
+        builder._add_exists_filter(["field1", "field2"])
+
+        assert "must" in builder.query["query"]["bool"]
+        assert len(builder.query["query"]["bool"]["must"]) == 2
+        assert {"exists": {"field": "field1"}} in builder.query["query"]["bool"]["must"]
+        assert {"exists": {"field": "field2"}} in builder.query["query"]["bool"]["must"]
+
+    def test_exists_filter_empty_list(self):
+        """Test _add_exists_filter with empty list."""
+        builder = QueryBuilder()
+        builder._add_exists_filter([])
+        assert "must" not in builder.query["query"]["bool"]
+
+    def test_not_exists_filter(self):
+        """Test _add_not_exists_filter adds exists queries to must_not clause."""
+        builder = QueryBuilder()
+        builder._add_not_exists_filter(["field3", "field4"])
+
+        assert "must_not" in builder.query["query"]["bool"]
+        assert len(builder.query["query"]["bool"]["must_not"]) == 2
+        assert {"exists": {"field": "field3"}} in builder.query["query"]["bool"]["must_not"]
+        assert {"exists": {"field": "field4"}} in builder.query["query"]["bool"]["must_not"]
+
+    def test_not_exists_filter_empty_list(self):
+        """Test _add_not_exists_filter with empty list."""
+        builder = QueryBuilder()
+        builder._add_not_exists_filter([])
+        assert "must_not" not in builder.query["query"]["bool"]
+
     def test_add_filter_with_all_filter_types(self):
         """Test _add_filter with all filter types."""
         builder = QueryBuilder()
@@ -310,6 +342,8 @@ class TestQueryBuilder:
                 notEquals=[EqualsFilter(field="deleted", value=True)],
                 rangeFilters=[RangeFilter(field="age", gte=18, lte=65)],
             ),
+            existsFilters=["field1"],
+            notExistsFilter=["field2"],
             sortList=[sortModel(field="created_at", order="desc")],
             size=20,
             returnFields=["id", "name", "email"],
@@ -319,7 +353,10 @@ class TestQueryBuilder:
 
         assert "must" in query["query"]["bool"]
         assert "must_not" in query["query"]["bool"]
-        assert len(query["query"]["bool"]["must"]) == 2  # equals + range
+        assert len(query["query"]["bool"]["must"]) == 3  # equals + range + exists
+        assert len(query["query"]["bool"]["must_not"]) == 2  # notEquals + notExists
+        assert {"exists": {"field": "field1"}} in query["query"]["bool"]["must"]
+        assert {"exists": {"field": "field2"}} in query["query"]["bool"]["must_not"]
 
     def test_build_from_dict(self):
         """Test build method can accept dict and validate it."""

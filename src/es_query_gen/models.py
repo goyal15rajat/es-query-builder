@@ -186,6 +186,7 @@ class QueryConfig(BaseModel):
 
     searchFilters: SearchFilter = Field(default_factory=SearchFilter)
     existsFilters: Optional[List[str]] = None
+    notExistsFilter: Optional[List[str]] = None
     sortList: Optional[List[sortModel]] = None
     size: Optional[int] = Field(default=1, ge=1, le=500)
     returnFields: Optional[List[str]] = None

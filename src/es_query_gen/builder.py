@@ -90,6 +90,32 @@ class QueryBuilder:
         if search_filter_object.range_filter:
             self._range_filter(search_filter_object.range_filter)
 
+    def _add_exists_filter(self, exists_filters: List[str]):
+        """Add exists filters to the query.
+
+        Args:
+            exists_filters: List of fields that must exist.
+        """
+        if exists_filters:
+            exists_list = [{"exists": {"field": field}} for field in exists_filters]
+            if self.query["query"]["bool"].get("must"):
+                self.query["query"]["bool"]["must"].extend(exists_list)
+            else:
+                self.query["query"]["bool"]["must"] = exists_list
+
+    def _add_not_exists_filter(self, not_exists_filter: List[str]):
+        """Add not exists filters to the query.
+
+        Args:
+            not_exists_filter: List of fields that must not exist.
+        """
+        if not_exists_filter:
+            must_not_list = [{"exists": {"field": field}} for field in not_exists_filter]
+            if self.query["query"]["bool"].get("must_not"):
+                self.query["query"]["bool"]["must_not"].extend(must_not_list)
+            else:
+                self.query["query"]["bool"]["must_not"] = must_not_list
+
     def _add_sort(self, sort_list):
         """Add sorting configuration to the query.
 
@@ -168,6 +194,8 @@ class QueryBuilder:
         es_query_config = QueryConfig.model_validate(es_query_config)
 
         self._add_filter(es_query_config.searchFilters)
+        self._add_exists_filter(es_query_config.existsFilters)
+        self._add_not_exists_filter(es_query_config.notExistsFilter)
 
         if not es_query_config.aggs:
             self._add_sort(es_query_config.sortList)
