@@ -17,6 +17,25 @@ class QueryBuilder:
         """Initialize a new QueryBuilder with an empty bool query structure."""
         self.query = {"query": {"bool": {}}}
 
+    def _create_term_query(self, field: str, value: any):
+        """Build a term-style query for a field/value pair.
+
+        Returns a ``terms`` query when ``value`` is a list and a ``term``
+        query for all other value types.
+
+        Args:
+            field: Field name to query.
+            value: Field value to match (scalar or list of values).
+
+        Returns:
+            Elasticsearch query clause as a dictionary.
+        """
+
+        if isinstance(value, list):
+            return {"terms": {field: value}}
+        else:
+            return {"term": {field: value}}
+
     def _equals_filter(self, equals_filters: List[EqualsFilter]):
         """Add equality filters to the query as 'must' clauses.
 
@@ -26,7 +45,7 @@ class QueryBuilder:
         must_list = []
 
         for filter_item in equals_filters:
-            must_list.append({"term": {filter_item.field: filter_item.value}})
+            must_list.append(self._create_term_query(filter_item.field, filter_item.value))
 
         if must_list:
             self.query["query"]["bool"]["must"] = must_list
@@ -40,7 +59,7 @@ class QueryBuilder:
         must_not_list = []
 
         for filter_item in not_equals_filters:
-            must_not_list.append({"term": {filter_item.field: filter_item.value}})
+            must_not_list.append(self._create_term_query(filter_item.field, filter_item.value))
 
         if must_not_list:
             self.query["query"]["bool"]["must_not"] = must_not_list
