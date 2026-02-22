@@ -271,6 +271,7 @@ class TestQueryConfig:
         assert config.sortList is None
         assert config.returnFields is None
         assert config.existsFilters is None
+        assert config.notExistsFilter is None
 
     def test_query_config_search_query(self):
         """Test QueryConfig for a search query."""
@@ -300,6 +301,11 @@ class TestQueryConfig:
         """Test QueryConfig with existsFilters."""
         config = QueryConfig(existsFilters=["field1", "field2"], size=10)
         assert config.existsFilters == ["field1", "field2"]
+
+    def test_query_config_with_not_exists_filters(self):
+        """Test QueryConfig with notExistsFilter."""
+        config = QueryConfig(notExistsFilter=["field3", "field4"], size=10)
+        assert config.notExistsFilter == ["field3", "field4"]
 
     def test_query_config_size_validation_min(self):
         """Test QueryConfig size validation (minimum)."""
