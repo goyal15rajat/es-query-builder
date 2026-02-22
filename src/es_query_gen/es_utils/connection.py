@@ -591,19 +591,21 @@ def es_search(
         query = {"match_all": {}}
 
     logger.debug(f"Searching index '{index}' from offset {from_} with query: {query}")
-    last_exception = None
+    last_exception: Optional[Exception] = None
     start_time = time.perf_counter()
 
     for attempt in range(max_retries):
         try:
-            response = es.search(
-                index=index,
-                body=query,
-                from_=from_,
-                request_timeout=timeout,
-            )
-            elapsed = (time.perf_counter() - start_time) * 1000
-            logger.info(f"Search completed in {elapsed:.2f}ms (index='{index}', from={from_}, query={query})")
+            try:
+                response = es.search(
+                    index=index,
+                    body=query,
+                    from_=from_,
+                    request_timeout=timeout,
+                )
+            finally:
+                elapsed = (time.perf_counter() - start_time) * 1000
+                logger.info(f"Search completed in {elapsed:.2f}ms (index='{index}', from={from_}, query={query})")
             return response
         except NotFoundError:
             logger.error(f"Index '{index}' not found")
@@ -789,14 +791,18 @@ async def es_search_async(
 
     for attempt in range(max_retries):
         try:
-            response = await es.search(
-                index=index,
-                body=query,
-                from_=from_,
-                request_timeout=timeout,
-            )
-            elapsed = (time.perf_counter() - start_time) * 1000
-            logger.info(f"Search (async) completed in {elapsed:.2f}ms (index='{index}', from={from_}, query={query})")
+            try:
+                response = await es.search(
+                    index=index,
+                    body=query,
+                    from_=from_,
+                    request_timeout=timeout,
+                )
+            finally:
+                elapsed = (time.perf_counter() - start_time) * 1000
+                logger.info(
+                    f"Search (async) completed in {elapsed:.2f}ms (index='{index}', from={from_}, query={query})"
+                )
             return response
         except NotFoundError:
             logger.error(f"Index '{index}' not found (async)")
