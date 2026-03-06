@@ -509,3 +509,35 @@ class TestESResponseParser:
         assert result["address"] == {"city": "New York", "country": "USA"}
         assert result["tags"] == ["python", "elasticsearch"]
         assert result["_id"] == "1"
+
+    def test_parse_data_resets_results_between_calls(self):
+        """parse_data must reset results so repeated calls don't accumulate stale data."""
+        config = QueryConfig(size=10)
+        parser = ESResponseParser(config)
+
+        response1 = {"hits": {"hits": [{"_id": "1", "_source": {"name": "Alice"}}]}}
+        response2 = {"hits": {"hits": [{"_id": "2", "_source": {"name": "Bob"}}]}}
+
+        r1 = parser.parse_data(response1)
+        assert len(r1) == 1
+        assert r1[0]["name"] == "Alice"
+
+        # Second call must contain ONLY the second response — not 2 docs
+        r2 = parser.parse_data(response2)
+        assert len(r2) == 1
+        assert r2[0]["name"] == "Bob"
+
+    def test_parse_data_results_list_is_independent_per_call(self):
+        """The list returned by parse_data must not be the same object across calls."""
+        config = QueryConfig(size=10)
+        parser = ESResponseParser(config)
+
+        response = {"hits": {"hits": [{"_id": "1", "_source": {"name": "Alice"}}]}}
+
+        r1 = parser.parse_data(response)
+        r2 = parser.parse_data(response)
+
+        # Both should have the same content but the reset guarantees the
+        # internal list is fresh — mutating r1 must not affect r2.
+        r1.append({"injected": True})
+        assert len(r2) == 1

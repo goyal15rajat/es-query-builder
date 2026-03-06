@@ -28,8 +28,21 @@ class Node:
 class ESResponseParser:
     """Parse Elasticsearch responses according to a QueryConfig.
 
-    - If `QueryConfig.aggs` is empty or None, parse hits and return a list of objects (dicts).
-    - If `QueryConfig.aggs` is present, print a placeholder and return an empty list.
+    Usage::
+
+        parser = ESResponseParser(config)
+        results = parser.parse_data(es_response)
+
+    Two parsing strategies are chosen automatically based on ``QueryConfig.aggs``:
+
+    - **No aggs** — extracts each document from ``hits.hits``, merging
+      ``_source`` fields with ``_id``.
+    - **With aggs** — walks the nested aggregation tree and extracts documents
+      from the ``top_hits_bucket`` at the leaf level.
+
+    A new ``ESResponseParser`` instance should be created per request, **or**
+    ``parse_data`` can be called multiple times on the same instance — results
+    are reset at the start of every call.
     """
 
     def __init__(self, query_config: Union[QueryConfig, Dict[str, Any]]):
@@ -45,14 +58,18 @@ class ESResponseParser:
         self.results: List[Dict[str, Any]] = []
 
     def parse_data(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Parse an ES response and return a list of objects.
+        """Parse an ES response and return a list of documents.
+
+        Resets the internal results list on every call, so the same
+        ``ESResponseParser`` instance can be safely reused across requests.
 
         Args:
             response: The raw JSON response from Elasticsearch (as a dict).
 
         Returns:
-            List of dict objects representing documents or aggregation results.
+            List of dicts representing documents or aggregation results.
         """
+        self.results = []  # reset so repeated calls don't accumulate stale data
         logger.debug("Parsing Elasticsearch response")
         if self.query_config.aggs:
             logger.debug("Parsing aggregation results")
@@ -64,11 +81,10 @@ class ESResponseParser:
         logger.debug(f"Parsed {len(self.results)} results")
         return self.results
 
-    def parse_search_results(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Parse search (hits) portion of an ES response and append to results.
+    def parse_search_results(self, response: Dict[str, Any]) -> None:
+        """Extract hits from an ES response and append them to ``self.results``.
 
-        Extracts documents from the hits array and adds them to self.results.
-        Each document includes its _source fields plus the _id field.
+        Each document includes its ``_source`` fields merged with ``_id``.
 
         Args:
             response: The raw Elasticsearch response containing hits.
@@ -133,7 +149,7 @@ class ESResponseParser:
             return
         bucket_item_list = aggs_bucket_data["buckets"]
 
-        if node.next == None:
+        if node.next is None:
             # Leafs node - extract top_hits
             if len(bucket_item_list) == 0:
                 return
@@ -150,12 +166,12 @@ class ESResponseParser:
             for bucket_item in bucket_item_list:
                 self._parse_aggs_recursively(node.next, bucket_item)
 
-    def parse_aggregations(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Parse aggregation results and append documents to results.
+    def parse_aggregations(self, response: Dict[str, Any]) -> None:
+        """Walk the nested aggregation tree and append leaf documents to ``self.results``.
 
-        Traverses nested aggregation buckets using a linked list structure
-        built from the query configuration. Extracts documents from top_hits
-        aggregations at the leaf level and adds them to self.results.
+        Builds a linked list from ``self.query_config.aggs``, then recursively
+        traverses bucket levels, extracting documents from the ``top_hits_bucket``
+        at the deepest aggregation level.
 
         Args:
             response: The raw Elasticsearch response containing aggregations.
