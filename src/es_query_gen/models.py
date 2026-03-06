@@ -102,6 +102,50 @@ class sortModel(BaseModel):
     order: Literal["asc", "desc"]
 
 
+class FullTextFilter(BaseModel):
+    """
+    Represents a full-text search filter using ``match`` or ``match_phrase``.
+
+    Attributes:
+        field (str): The field to run the full-text query against.
+        query (str): The search text.
+        type (Literal['match', 'match_phrase']): The ES query type (default: 'match').
+            - ``match`` — standard full-text search with analysis.
+            - ``match_phrase`` — requires all terms to appear in order.
+        operator (Optional[Literal['and', 'or']]): For ``match`` only. Controls whether
+            all terms (``and``) or any term (``or``) must match (default: 'or').
+        minimum_should_match (Optional[Union[int, str]]): Minimum number / percentage of
+            terms that must match. Only applies when ``operator`` is ``or``.
+            Accepts an integer (e.g. 2) or a percentage string (e.g. "75%").
+
+    Examples:
+        # Simple match
+        FullTextFilter(field='description', query='fast delivery')
+
+        # All tokens must match
+        FullTextFilter(field='title', query='red shoes', operator='and')
+
+        # Exact phrase match
+        FullTextFilter(field='address', query='Baker Street', textFilterType='match_phrase')
+    """
+
+    field: str
+    query: str
+    textFilterType: Literal["match", "match_phrase"] = "match"
+    operator: Optional[Literal["and", "or"]] = None
+    minimum_should_match: Optional[Union[int, str]] = None
+
+    @model_validator(mode="after")
+    def validate_match_phrase_options(self) -> "FullTextFilter":
+        """Ensure match_phrase-incompatible options are not set."""
+        if self.textFilterType == "match_phrase":
+            if self.operator is not None:
+                raise ValueError("'operator' is not supported for match_phrase queries.")
+            if self.minimum_should_match is not None:
+                raise ValueError("'minimum_should_match' is not supported for match_phrase queries.")
+        return self
+
+
 class SearchFilter(BaseModel):
     """
     Container for different types of search filters.
@@ -110,18 +154,21 @@ class SearchFilter(BaseModel):
         equals_filter (List[EqualsFilter]): List of equality filters (aliased as 'equals').
         not_equals_filter (List[EqualsFilter]): List of inequality filters (aliased as 'notEquals').
         range_filter (List[RangeFilter]): List of range filters (aliased as 'rangeFilters').
+        full_text_filter (List[FullTextFilter]): List of full-text filters (aliased as 'fullText').
 
     Example:
         filters = SearchFilter(
             equals=[EqualsFilter(field='status', value='active')],
             notEquals=[EqualsFilter(field='deleted', value=True)],
-            rangeFilters=[RangeFilter(field='age', gte=18, lte=65)]
+            rangeFilters=[RangeFilter(field='age', gte=18, lte=65)],
+            fullText=[FullTextFilter(field='description', query='fast delivery')],
         )
     """
 
     equals_filter: List[EqualsFilter] = Field(default_factory=list, alias="equals")
     not_equals_filter: List[EqualsFilter] = Field(default_factory=list, alias="notEquals")
     range_filter: List[RangeFilter] = Field(default_factory=list, alias="rangeFilters")
+    full_text_filter: List[FullTextFilter] = Field(default_factory=list, alias="fullText")
 
 
 class AggregationRule(BaseModel):

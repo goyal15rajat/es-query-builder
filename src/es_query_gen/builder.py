@@ -1,7 +1,7 @@
 import logging
-from typing import List
+from typing import Any, Dict, List, Union
 
-from .models import EqualsFilter, QueryConfig, RangeFilter, SearchFilter
+from .models import EqualsFilter, FullTextFilter, QueryConfig, RangeFilter, SearchFilter
 
 logger = logging.getLogger(__name__)
 
@@ -9,15 +9,18 @@ logger = logging.getLogger(__name__)
 class QueryBuilder:
     """Build Elasticsearch queries from QueryConfig objects.
 
-    This class provides methods to construct complex Elasticsearch queries
-    including filters, sorting, field selection, and aggregations.
+    All methods are static — the class holds no instance state and does not
+    need to be instantiated.  Both calling styles work:
+
+        # Preferred (no instantiation needed)
+        query = QueryBuilder.build(config)
+
+        # Also fine (throwaway instance, same result)
+        query = QueryBuilder().build(config)
     """
 
-    def __init__(self):
-        """Initialize a new QueryBuilder with an empty bool query structure."""
-        self.query = {"query": {"bool": {}}}
-
-    def _create_term_query(self, field: str, value: any):
+    @staticmethod
+    def _create_term_query(field: str, value: Any) -> Dict[str, Any]:
         """Build a term-style query for a field/value pair.
 
         Returns a ``terms`` query when ``value`` is a list and a ``term``
@@ -30,139 +33,171 @@ class QueryBuilder:
         Returns:
             Elasticsearch query clause as a dictionary.
         """
-
         if isinstance(value, list):
             return {"terms": {field: value}}
-        else:
-            return {"term": {field: value}}
+        return {"term": {field: value}}
 
-    def _equals_filter(self, equals_filters: List[EqualsFilter]):
-        """Add equality filters to the query as 'must' clauses.
+    @staticmethod
+    def _equals_filter(query: Dict[str, Any], equals_filters: List[EqualsFilter]) -> None:
+        """Add equality filters to the query as ``bool.filter`` clauses.
+
+        Using ``filter`` context skips relevance scoring and enables ES query
+        caching, making exact-match filters faster than ``must``.
 
         Args:
+            query: The in-progress ES query dict to mutate.
             equals_filters: List of EqualsFilter objects to add as term queries.
         """
-        must_list = []
+        items = [QueryBuilder._create_term_query(f.field, f.value) for f in equals_filters]
+        if items:
+            query["query"]["bool"].setdefault("filter", []).extend(items)
 
-        for filter_item in equals_filters:
-            must_list.append(self._create_term_query(filter_item.field, filter_item.value))
-
-        if must_list:
-            self.query["query"]["bool"]["must"] = must_list
-
-    def _not_equals_filter(self, not_equals_filters: List[EqualsFilter]):
-        """Add inequality filters to the query as 'must_not' clauses.
+    @staticmethod
+    def _not_equals_filter(query: Dict[str, Any], not_equals_filters: List[EqualsFilter]) -> None:
+        """Add inequality filters to the query as ``bool.must_not`` clauses.
 
         Args:
+            query: The in-progress ES query dict to mutate.
             not_equals_filters: List of EqualsFilter objects to add as negated term queries.
         """
-        must_not_list = []
+        items = [QueryBuilder._create_term_query(f.field, f.value) for f in not_equals_filters]
+        if items:
+            query["query"]["bool"].setdefault("must_not", []).extend(items)
 
-        for filter_item in not_equals_filters:
-            must_not_list.append(self._create_term_query(filter_item.field, filter_item.value))
+    @staticmethod
+    def _range_filter(query: Dict[str, Any], range_filters: List[RangeFilter]) -> None:
+        """Add range filters to the query as ``bool.filter`` clauses.
 
-        if must_not_list:
-            self.query["query"]["bool"]["must_not"] = must_not_list
-
-    def _range_filter(self, range_filter: List[RangeFilter]):
-        """Add range filters to the query.
-
-        Builds range queries supporting gte, gt, lte, lt operators for both
-        numeric and date ranges.
+        Using ``filter`` context skips relevance scoring and enables ES query
+        caching for range queries.
 
         Args:
-            range_filter: List of RangeFilter objects to add as range queries.
+            query: The in-progress ES query dict to mutate.
+            range_filters: List of RangeFilter objects to add as range queries.
         """
-        range_list = []
+        items = []
+        for rf in range_filters:
+            range_dict: Dict[str, Any] = {}
+            if rf.gte is not None:
+                range_dict["gte"] = rf.gte
+            if rf.gt is not None:
+                range_dict["gt"] = rf.gt
+            if rf.lte is not None:
+                range_dict["lte"] = rf.lte
+            if rf.lt is not None:
+                range_dict["lt"] = rf.lt
+            items.append({"range": {rf.field: range_dict}})
 
-        for range_filter_obj in range_filter:
-            range_dict = {}
-            if range_filter_obj.gte is not None:
-                range_dict["gte"] = range_filter_obj.gte
-            if range_filter_obj.gt is not None:
-                range_dict["gt"] = range_filter_obj.gt
-            if range_filter_obj.lte is not None:
-                range_dict["lte"] = range_filter_obj.lte
-            if range_filter_obj.lt is not None:
-                range_dict["lt"] = range_filter_obj.lt
+        if items:
+            query["query"]["bool"].setdefault("filter", []).extend(items)
 
-            range_list.append({"range": {range_filter_obj.field: range_dict}})
+    @staticmethod
+    def _full_text_filter(query: Dict[str, Any], full_text_filters: List[FullTextFilter]) -> None:
+        """Add full-text search filters to the query as ``bool.must`` clauses.
 
-        if range_list:
-            if self.query["query"]["bool"].get("must"):
-                self.query["query"]["bool"]["must"].extend(range_list)
-            else:
-                self.query["query"]["bool"]["must"] = range_list
+        Full-text filters live in ``must`` (not ``filter``) because they
+        contribute to the relevance ``_score`` — documents matching more of the
+        query text are ranked higher.
 
-    def _add_filter(self, search_filter_object: SearchFilter):
+        Args:
+            query: The in-progress ES query dict to mutate.
+            full_text_filters: List of FullTextFilter objects.
+        """
+        items = []
+        for ft in full_text_filters:
+            if ft.textFilterType == "match":
+                clause: Dict[str, Any] = {"query": ft.query}
+                if ft.operator is not None:
+                    clause["operator"] = ft.operator
+                if ft.minimum_should_match is not None:
+                    clause["minimum_should_match"] = ft.minimum_should_match
+                items.append({"match": {ft.field: clause}})
+            else:  # match_phrase
+                items.append({"match_phrase": {ft.field: {"query": ft.query}}})
+
+        if items:
+            query["query"]["bool"].setdefault("must", []).extend(items)
+
+    @staticmethod
+    def _add_filter(query: Dict[str, Any], search_filter_object: SearchFilter) -> None:
         """Add all search filters from a SearchFilter object to the query.
 
         Args:
-            search_filter_object: SearchFilter containing equals, not_equals, and range filters.
+            query: The in-progress ES query dict to mutate.
+            search_filter_object: SearchFilter containing equals, not_equals, range,
+                and full-text filters.
         """
         if search_filter_object.equals_filter:
-            self._equals_filter(search_filter_object.equals_filter)
+            QueryBuilder._equals_filter(query, search_filter_object.equals_filter)
 
         if search_filter_object.not_equals_filter:
-            self._not_equals_filter(search_filter_object.not_equals_filter)
+            QueryBuilder._not_equals_filter(query, search_filter_object.not_equals_filter)
 
         if search_filter_object.range_filter:
-            self._range_filter(search_filter_object.range_filter)
+            QueryBuilder._range_filter(query, search_filter_object.range_filter)
 
-    def _add_exists_filter(self, exists_filters: List[str]):
-        """Add exists filters to the query.
+        if search_filter_object.full_text_filter:
+            QueryBuilder._full_text_filter(query, search_filter_object.full_text_filter)
+
+    @staticmethod
+    def _add_exists_filter(query: Dict[str, Any], exists_filters: List[str]) -> None:
+        """Add exists filters to the query as ``bool.filter`` clauses.
 
         Args:
+            query: The in-progress ES query dict to mutate.
             exists_filters: List of fields that must exist.
         """
         if exists_filters:
-            exists_list = [{"exists": {"field": field}} for field in exists_filters]
-            if self.query["query"]["bool"].get("must"):
-                self.query["query"]["bool"]["must"].extend(exists_list)
-            else:
-                self.query["query"]["bool"]["must"] = exists_list
+            query["query"]["bool"].setdefault("filter", []).extend([{"exists": {"field": f}} for f in exists_filters])
 
-    def _add_not_exists_filter(self, not_exists_filter: List[str]):
-        """Add not exists filters to the query.
+    @staticmethod
+    def _add_not_exists_filter(query: Dict[str, Any], not_exists_filter: List[str]) -> None:
+        """Add not-exists filters to the query as ``bool.must_not`` clauses.
 
         Args:
+            query: The in-progress ES query dict to mutate.
             not_exists_filter: List of fields that must not exist.
         """
         if not_exists_filter:
-            must_not_list = [{"exists": {"field": field}} for field in not_exists_filter]
-            if self.query["query"]["bool"].get("must_not"):
-                self.query["query"]["bool"]["must_not"].extend(must_not_list)
-            else:
-                self.query["query"]["bool"]["must_not"] = must_not_list
+            query["query"]["bool"].setdefault("must_not", []).extend(
+                [{"exists": {"field": f}} for f in not_exists_filter]
+            )
 
-    def _add_sort(self, sort_list):
+    @staticmethod
+    def _add_sort(query: Dict[str, Any], sort_list) -> None:
         """Add sorting configuration to the query.
 
         Args:
+            query: The in-progress ES query dict to mutate.
             sort_list: List of sortModel objects defining field and order.
         """
         if sort_list:
-            self.query["sort"] = [{sort_object.field: {"order": sort_object.order}} for sort_object in sort_list]
+            query["sort"] = [{s.field: {"order": s.order}} for s in sort_list]
 
-    def _add_size(self, size_value):
+    @staticmethod
+    def _add_size(query: Dict[str, Any], size_value) -> None:
         """Set the number of results to return.
 
         Args:
+            query: The in-progress ES query dict to mutate.
             size_value: Maximum number of documents to return.
         """
         if size_value:
-            self.query["size"] = size_value
+            query["size"] = size_value
 
-    def _add_include(self, return_fields):
+    @staticmethod
+    def _add_include(query: Dict[str, Any], return_fields) -> None:
         """Configure which fields to include in the response.
 
         Args:
+            query: The in-progress ES query dict to mutate.
             return_fields: List of field names to include in _source.
         """
         if return_fields:
-            self.query["_source"] = {"includes": return_fields}
+            query["_source"] = {"includes": return_fields}
 
-    def _add_aggs(self, aggs_list, return_fields, size):
+    @staticmethod
+    def _add_aggs(query: Dict[str, Any], aggs_list, return_fields, size) -> None:
         """Add aggregations to the query with nested structure.
 
         Builds nested aggregations from the provided list, with a top_hits sub-aggregation
@@ -170,59 +205,66 @@ class QueryBuilder:
         sorting when aggregations are present.
 
         Args:
+            query: The in-progress ES query dict to mutate.
             aggs_list: List of AggregationRule objects defining the aggregation hierarchy.
             return_fields: Fields to include in the top_hits aggregation results.
             size: Number of documents to return per aggregation bucket.
         """
-        if aggs_list:
-            self.query["size"] = 0
-            self.query.pop("sort", None)
-        else:
+        if not aggs_list:
             return
-        es_aggs = {}
-        agg_internal_pointer = es_aggs
-        l = len(aggs_list)
+
+        query["size"] = 0
+        query.pop("sort", None)
+
+        es_aggs: Dict[str, Any] = {}
+        pointer = es_aggs
+        num_aggs = len(aggs_list)
         for i, agg_item in enumerate(aggs_list):
-            agg_internal_pointer["aggs"] = {}
+            pointer["aggs"] = {}
             if agg_item.aggType == "terms":
-                aggs_dict = {"terms": {"field": agg_item.field, "size": agg_item.size}}
+                aggs_dict: Dict[str, Any] = {"terms": {"field": agg_item.field, "size": agg_item.size}}
                 if agg_item.order:
                     aggs_dict["terms"]["order"] = {"_key": agg_item.order}
-            agg_internal_pointer["aggs"][agg_item.name] = aggs_dict
-            agg_internal_pointer = agg_internal_pointer["aggs"][agg_item.name]
-            if i == l - 1:
-                agg_internal_pointer["aggs"] = {
+            pointer["aggs"][agg_item.name] = aggs_dict
+            pointer = pointer["aggs"][agg_item.name]
+            if i == num_aggs - 1:
+                pointer["aggs"] = {
                     "top_hits_bucket": {"top_hits": {"size": size, "_source": {"includes": return_fields}}}
                 }
 
-        self.query["aggs"] = es_aggs["aggs"]
+        query["aggs"] = es_aggs["aggs"]
 
-    def build(self, es_query_config: QueryConfig) -> dict:
+    @staticmethod
+    def build(es_query_config: Union[QueryConfig, Dict[str, Any]]) -> Dict[str, Any]:
         """Build a complete Elasticsearch query from a QueryConfig object.
 
-        Constructs the final query by applying filters, sorting, pagination,
-        field selection, or aggregations based on the configuration.
+        Creates a fresh local query dict on every call — no shared state, fully
+        thread-safe, and safely callable as ``QueryBuilder.build(config)`` without
+        instantiation.
 
         Args:
-            es_query_config: QueryConfig object containing all query parameters.
+            es_query_config: ``QueryConfig`` instance or a plain dict that will be
+                coerced via ``model_validate``.
 
         Returns:
             Dictionary representing a complete Elasticsearch query DSL.
         """
+        query: Dict[str, Any] = {"query": {"bool": {}}}
+
         logger.debug("Building Elasticsearch query from QueryConfig")
-        es_query_config = QueryConfig.model_validate(es_query_config)
+        config = QueryConfig.model_validate(es_query_config)
 
-        self._add_filter(es_query_config.searchFilters)
-        self._add_exists_filter(es_query_config.existsFilters)
-        self._add_not_exists_filter(es_query_config.notExistsFilter)
+        QueryBuilder._add_filter(query, config.searchFilters)
+        QueryBuilder._add_exists_filter(query, config.existsFilters)
+        QueryBuilder._add_not_exists_filter(query, config.notExistsFilter)
 
-        if not es_query_config.aggs:
-            self._add_sort(es_query_config.sortList)
-            self._add_size(es_query_config.size)
-            self._add_include(es_query_config.returnFields)
+        if not config.aggs:
+            QueryBuilder._add_sort(query, config.sortList)
+            QueryBuilder._add_size(query, config.size)
+            QueryBuilder._add_include(query, config.returnFields)
         else:
-            logger.debug(f"Adding aggregations: {len(es_query_config.aggs)} levels")
-            self._add_aggs(es_query_config.aggs, es_query_config.returnFields, es_query_config.size)
+            logger.debug(f"Adding aggregations: {len(config.aggs)} levels")
+            QueryBuilder._add_aggs(query, config.aggs, config.returnFields, config.size)
 
-        logger.debug(f"Built query with size={self.query.get('size', 'default')}")
-        return self.query
+        logger.debug(f"Built query with size={query.get('size', 'default')}")
+        return query

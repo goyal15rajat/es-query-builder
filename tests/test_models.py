@@ -8,11 +8,70 @@ from pydantic import ValidationError
 from src.es_query_gen.models import (
     AggregationRule,
     EqualsFilter,
+    FullTextFilter,
     QueryConfig,
     RangeFilter,
     SearchFilter,
     sortModel,
 )
+
+
+class TestFullTextFilter:
+    """Test cases for FullTextFilter model."""
+
+    def test_match_defaults(self):
+        """Test FullTextFilter defaults to match type."""
+        ft = FullTextFilter(field="description", query="fast delivery")
+        assert ft.field == "description"
+        assert ft.query == "fast delivery"
+        assert ft.textFilterType == "match"
+        assert ft.operator is None
+        assert ft.minimum_should_match is None
+
+    def test_match_with_and_operator(self):
+        """Test FullTextFilter match with AND operator."""
+        ft = FullTextFilter(field="title", query="red shoes", operator="and")
+        assert ft.operator == "and"
+        assert ft.textFilterType == "match"
+
+    def test_match_with_or_operator(self):
+        """Test FullTextFilter match with OR operator."""
+        ft = FullTextFilter(field="title", query="red shoes", operator="or")
+        assert ft.operator == "or"
+
+    def test_match_with_minimum_should_match_int(self):
+        """Test FullTextFilter match with minimum_should_match as int."""
+        ft = FullTextFilter(field="body", query="a b c d", minimum_should_match=2)
+        assert ft.minimum_should_match == 2
+
+    def test_match_with_minimum_should_match_percentage(self):
+        """Test FullTextFilter match with minimum_should_match as percentage string."""
+        ft = FullTextFilter(field="body", query="a b c d", minimum_should_match="75%")
+        assert ft.minimum_should_match == "75%"
+
+    def test_match_phrase(self):
+        """Test FullTextFilter with match_phrase type."""
+        ft = FullTextFilter(field="address", query="Baker Street", textFilterType="match_phrase")
+        assert ft.textFilterType == "match_phrase"
+        assert ft.field == "address"
+        assert ft.query == "Baker Street"
+
+    def test_match_phrase_rejects_operator(self):
+        """Test that match_phrase raises when operator is set."""
+        with pytest.raises(ValidationError) as exc_info:
+            FullTextFilter(field="title", query="foo", textFilterType="match_phrase", operator="and")
+        assert "operator" in str(exc_info.value)
+
+    def test_match_phrase_rejects_minimum_should_match(self):
+        """Test that match_phrase raises when minimum_should_match is set."""
+        with pytest.raises(ValidationError) as exc_info:
+            FullTextFilter(field="title", query="foo", textFilterType="match_phrase", minimum_should_match=2)
+        assert "minimum_should_match" in str(exc_info.value)
+
+    def test_invalid_type(self):
+        """Test FullTextFilter raises on unsupported type."""
+        with pytest.raises(ValidationError):
+            FullTextFilter(field="title", query="foo", textFilterType="wildcard")
 
 
 class TestEqualsFilter:

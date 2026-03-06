@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from .models import QueryConfig
 
@@ -32,13 +32,16 @@ class ESResponseParser:
     - If `QueryConfig.aggs` is present, print a placeholder and return an empty list.
     """
 
-    def __init__(self, query_config: QueryConfig):
+    def __init__(self, query_config: Union[QueryConfig, Dict[str, Any]]):
         """Initialize the parser with a query configuration.
 
         Args:
-            query_config: The QueryConfig object used to determine parsing strategy.
+            query_config: A ``QueryConfig`` instance **or** a plain dict that will
+                be coerced into one via ``model_validate``.  Accepting a dict keeps
+                the API consistent with ``QueryBuilder.build()`` and lets callers
+                pass the same config object they use to build the query.
         """
-        self.query_config = query_config
+        self.query_config: QueryConfig = QueryConfig.model_validate(query_config)
         self.results: List[Dict[str, Any]] = []
 
     def parse_data(self, response: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -51,7 +54,7 @@ class ESResponseParser:
             List of dict objects representing documents or aggregation results.
         """
         logger.debug("Parsing Elasticsearch response")
-        if "aggs" in self.query_config:
+        if self.query_config.aggs:
             logger.debug("Parsing aggregation results")
             self.parse_aggregations(response)
         else:
@@ -116,7 +119,10 @@ class ESResponseParser:
         if node is None:
             return
 
-        aggs_bucket_name = node.data["name"]
+        # node.data is an AggregationRule (from QueryConfig) or a plain dict
+        # (as used when tests call this method directly with raw  dict nodes).
+        data = node.data
+        aggs_bucket_name = data.name if hasattr(data, "name") else data["name"]
 
         if not aggs_data.get(aggs_bucket_name):
             return
@@ -156,6 +162,6 @@ class ESResponseParser:
         """
         aggs_response = response.get("aggregations", {}) or {}
 
-        aggs_config_ll = self._generate_aggs_linked_list(self.query_config["aggs"])
+        aggs_config_ll = self._generate_aggs_linked_list(self.query_config.aggs)
 
         self._parse_aggs_recursively(aggs_config_ll, aggs_response)

@@ -7,6 +7,7 @@ Example:
 from .models import (
     AggregationRule,
     EqualsFilter,
+    FullTextFilter,
     QueryConfig,
     RangeFilter,
     SearchFilter,
@@ -15,6 +16,7 @@ from .models import (
 
 __all__ = [
     "EqualsFilter",
+    "FullTextFilter",
     "RangeFilter",
     "sortModel",
     "SearchFilter",
