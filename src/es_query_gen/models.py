@@ -38,12 +38,20 @@ class RangeFilter(BaseModel):
         # Numeric range
         filter = RangeFilter(field='age', gte=18, lte=30, rangeType='number')
 
-        # Date range with relative offset (dict format)
+        # Date range with relative offset (dict format — converted at validation time)
         date_filter = RangeFilter(
             field='created_at',
             gte={'days': -30},
             rangeType='date',
             dateFormat='%Y-%m-%d'
+        )
+
+        # Date range with absolute date string (passed through as-is)
+        date_filter = RangeFilter(
+            field='created_at',
+            gte='2024-01-01',
+            lte='2024-12-31',
+            rangeType='date',
         )
     """
 
@@ -67,15 +75,23 @@ class RangeFilter(BaseModel):
     @field_validator("gt", "gte", "lt", "lte", mode="after")
     @classmethod
     def validate_date_range(cls, v: Union[float, str, int, None, dict], info) -> Union[float, str, int, None, dict]:
-        """Validate and format min/max values against dateFormat when rangeType is 'date'."""
-        if info.data.get("rangeType") == "date" and v is not None:
-            if not isinstance(v, dict):
-                raise ValueError(
-                    "For date rangeType, min and max should be provided as dicts representing relative date offsets."
-                )
-            date_format = info.data.get("dateFormat", "%Y-%m-%d")
-            v = (datetime.now() + relativedelta(**v)).strftime(date_format)
+        """Validate and convert date boundary values when rangeType is 'date'.
 
+        Two formats are accepted:
+        - **dict** (relative offset) — e.g. ``{'days': -30}`` — converted to a
+          formatted date string using ``dateFormat`` and today's date.
+        - **str** (absolute date) — e.g. ``'2024-01-01'`` — passed through
+          unchanged so callers can supply pre-formatted ES date strings.
+        """
+        if info.data.get("rangeType") == "date" and v is not None:
+            if isinstance(v, dict):
+                date_format = info.data.get("dateFormat", "%Y-%m-%d")
+                v = (datetime.now() + relativedelta(**v)).strftime(date_format)
+            elif not isinstance(v, str):
+                raise ValueError(
+                    "For date rangeType, values must be a relative offset dict "
+                    "(e.g. {'days': -30}) or an absolute date string (e.g. '2024-01-01')."
+                )
         return v
 
     @model_validator(mode="after")

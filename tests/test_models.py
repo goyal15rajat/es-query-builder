@@ -168,16 +168,38 @@ class TestRangeFilter:
             )
         assert "dateFormat must be provided" in str(exc_info.value)
 
-    def test_range_filter_date_with_non_dict_value(self):
-        """Test RangeFilter raises error when date rangeType gets non-dict value."""
+    def test_range_filter_date_with_absolute_string(self):
+        """Test RangeFilter accepts absolute date strings for date rangeType."""
+        filter_obj = RangeFilter(
+            field="created_at",
+            gte="2024-01-01",
+            lte="2024-12-31",
+            rangeType="date",
+        )
+        # String values should pass through unchanged
+        assert filter_obj.gte == "2024-01-01"
+        assert filter_obj.lte == "2024-12-31"
+
+    def test_range_filter_date_open_ended_absolute(self):
+        """Test RangeFilter with only one absolute date bound."""
+        filter_obj = RangeFilter(
+            field="published_at",
+            gte="2023-06-01",
+            rangeType="date",
+        )
+        assert filter_obj.gte == "2023-06-01"
+        assert filter_obj.lte is None
+
+    def test_range_filter_date_with_invalid_value_type(self):
+        """Test RangeFilter raises for non-string, non-dict date values (e.g. int)."""
         with pytest.raises(ValidationError) as exc_info:
             RangeFilter(
                 field="created_at",
-                gte="2024-01-01",
+                gte=20240101,  # int is not valid for date rangeType
                 rangeType="date",
                 dateFormat="%Y-%m-%d",
             )
-        assert "relative date offsets" in str(exc_info.value)
+        assert "relative offset dict" in str(exc_info.value)
 
     def test_range_filter_no_operators(self):
         """Test RangeFilter raises error when no operators are provided."""
