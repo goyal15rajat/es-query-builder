@@ -109,7 +109,7 @@ class TestQueryBuilderIntegration:
         # Query should have the expected structure
         assert "query" in query
         assert "bool" in query["query"]
-        assert "must" in query["query"]["bool"]
+        assert "filter" in query["query"]["bool"]
 
         # Try to execute (may not return results if index doesn't exist, but should not error)
         try:
@@ -130,8 +130,8 @@ class TestQueryBuilderIntegration:
         query = QueryBuilder().build(config)
 
         # Query should have range filter
-        assert "must" in query["query"]["bool"]
-        has_range = any("range" in item for item in query["query"]["bool"]["must"])
+        assert "filter" in query["query"]["bool"]
+        has_range = any("range" in item for item in query["query"]["bool"]["filter"])
         assert has_range
 
     def test_build_and_execute_aggregation_query(self, es_client, test_index):

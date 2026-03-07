@@ -38,12 +38,20 @@ class RangeFilter(BaseModel):
         # Numeric range
         filter = RangeFilter(field='age', gte=18, lte=30, rangeType='number')
 
-        # Date range with relative offset (dict format)
+        # Date range with relative offset (dict format — converted at validation time)
         date_filter = RangeFilter(
             field='created_at',
             gte={'days': -30},
             rangeType='date',
             dateFormat='%Y-%m-%d'
+        )
+
+        # Date range with absolute date string (passed through as-is)
+        date_filter = RangeFilter(
+            field='created_at',
+            gte='2024-01-01',
+            lte='2024-12-31',
+            rangeType='date',
         )
     """
 
@@ -67,15 +75,23 @@ class RangeFilter(BaseModel):
     @field_validator("gt", "gte", "lt", "lte", mode="after")
     @classmethod
     def validate_date_range(cls, v: Union[float, str, int, None, dict], info) -> Union[float, str, int, None, dict]:
-        """Validate and format min/max values against dateFormat when rangeType is 'date'."""
-        if info.data.get("rangeType") == "date" and v is not None:
-            if not isinstance(v, dict):
-                raise ValueError(
-                    "For date rangeType, min and max should be provided as dicts representing relative date offsets."
-                )
-            date_format = info.data.get("dateFormat", "%Y-%m-%d")
-            v = (datetime.now() + relativedelta(**v)).strftime(date_format)
+        """Validate and convert date boundary values when rangeType is 'date'.
 
+        Two formats are accepted:
+        - **dict** (relative offset) — e.g. ``{'days': -30}`` — converted to a
+          formatted date string using ``dateFormat`` and today's date.
+        - **str** (absolute date) — e.g. ``'2024-01-01'`` — passed through
+          unchanged so callers can supply pre-formatted ES date strings.
+        """
+        if info.data.get("rangeType") == "date" and v is not None:
+            if isinstance(v, dict):
+                date_format = info.data.get("dateFormat", "%Y-%m-%d")
+                v = (datetime.now() + relativedelta(**v)).strftime(date_format)
+            elif not isinstance(v, str):
+                raise ValueError(
+                    "For date rangeType, values must be a relative offset dict "
+                    "(e.g. {'days': -30}) or an absolute date string (e.g. '2024-01-01')."
+                )
         return v
 
     @model_validator(mode="after")
@@ -102,6 +118,50 @@ class sortModel(BaseModel):
     order: Literal["asc", "desc"]
 
 
+class FullTextFilter(BaseModel):
+    """
+    Represents a full-text search filter using ``match`` or ``match_phrase``.
+
+    Attributes:
+        field (str): The field to run the full-text query against.
+        query (str): The search text.
+        type (Literal['match', 'match_phrase']): The ES query type (default: 'match').
+            - ``match`` — standard full-text search with analysis.
+            - ``match_phrase`` — requires all terms to appear in order.
+        operator (Optional[Literal['and', 'or']]): For ``match`` only. Controls whether
+            all terms (``and``) or any term (``or``) must match (default: 'or').
+        minimum_should_match (Optional[Union[int, str]]): Minimum number / percentage of
+            terms that must match. Only applies when ``operator`` is ``or``.
+            Accepts an integer (e.g. 2) or a percentage string (e.g. "75%").
+
+    Examples:
+        # Simple match
+        FullTextFilter(field='description', query='fast delivery')
+
+        # All tokens must match
+        FullTextFilter(field='title', query='red shoes', operator='and')
+
+        # Exact phrase match
+        FullTextFilter(field='address', query='Baker Street', textFilterType='match_phrase')
+    """
+
+    field: str
+    query: str
+    textFilterType: Literal["match", "match_phrase"] = "match"
+    operator: Optional[Literal["and", "or"]] = None
+    minimum_should_match: Optional[Union[int, str]] = None
+
+    @model_validator(mode="after")
+    def validate_match_phrase_options(self) -> "FullTextFilter":
+        """Ensure match_phrase-incompatible options are not set."""
+        if self.textFilterType == "match_phrase":
+            if self.operator is not None:
+                raise ValueError("'operator' is not supported for match_phrase queries.")
+            if self.minimum_should_match is not None:
+                raise ValueError("'minimum_should_match' is not supported for match_phrase queries.")
+        return self
+
+
 class SearchFilter(BaseModel):
     """
     Container for different types of search filters.
@@ -110,18 +170,21 @@ class SearchFilter(BaseModel):
         equals_filter (List[EqualsFilter]): List of equality filters (aliased as 'equals').
         not_equals_filter (List[EqualsFilter]): List of inequality filters (aliased as 'notEquals').
         range_filter (List[RangeFilter]): List of range filters (aliased as 'rangeFilters').
+        full_text_filter (List[FullTextFilter]): List of full-text filters (aliased as 'fullText').
 
     Example:
         filters = SearchFilter(
             equals=[EqualsFilter(field='status', value='active')],
             notEquals=[EqualsFilter(field='deleted', value=True)],
-            rangeFilters=[RangeFilter(field='age', gte=18, lte=65)]
+            rangeFilters=[RangeFilter(field='age', gte=18, lte=65)],
+            fullText=[FullTextFilter(field='description', query='fast delivery')],
         )
     """
 
     equals_filter: List[EqualsFilter] = Field(default_factory=list, alias="equals")
     not_equals_filter: List[EqualsFilter] = Field(default_factory=list, alias="notEquals")
     range_filter: List[RangeFilter] = Field(default_factory=list, alias="rangeFilters")
+    full_text_filter: List[FullTextFilter] = Field(default_factory=list, alias="fullText")
 
 
 class AggregationRule(BaseModel):

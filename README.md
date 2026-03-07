@@ -7,12 +7,13 @@
 
 ## Overview
 
-This library provides four main components:
+This library provides five main components:
 
 1. **Query Generator** - Convert simple configuration dictionaries into complex Elasticsearch DSL queries
 2. **ES Client Wrapper** - Simplified connection management with retry logic, timeouts, and both sync/async support
 3. **Response Parser** - Parse complex Elasticsearch responses including nested aggregations into clean Python objects
-4. **Schema Validator** - Validate Elasticsearch index schemas to ensure settings and field mappings match expected configurations
+4. **Response Transformer** - Transform parsed documents (type casting, renaming, casing, date conversion)
+5. **Schema Validator** - Validate Elasticsearch index schemas to ensure settings and field mappings match expected configurations
 
 ### Notes
 
@@ -32,6 +33,7 @@ This library provides four main components:
   - Field selection
 - 🔌 **ES Client Management** - Singleton pattern with connection pooling, retries, and error handling
 - 📊 **Response Parser** - Extract documents from complex nested aggregations
+- 🛠️ **Response Transformer** - Transform output fields (rename, auto-convert datetimes to epoch, uppercase/lowercase, default values)
 - ⚡ **Async Support** - Full async/await support for all ES operations (`connect_es_async`, `es_search_async`, `get_index_schema_async`, etc.)
 - 📝 **Comprehensive Logging** - Built-in logging with performance metrics, compatible with JSON/structured logging
 - ✅ **Schema Validator** - Validate index schemas against expected configurations with detailed reporting
@@ -150,7 +152,47 @@ for doc in results:
     print(doc['name'], doc['email'])
 ```
 
-### 4. Configure Logging
+### 4. Transform Output Data
+
+Clean and reshape the parsed documents before returning them to your application using `ResponseTransformer`:
+
+```python
+from es_query_gen import TransformConfig, FieldTransformRule, ResponseTransformer
+
+# Define how you want your parsed data mapped, renamed, or cast
+config = TransformConfig(
+    rules=[
+        # Rename and cast types:
+        FieldTransformRule(source_key="user_id", target_key="userId", type_cast="STR"),
+        
+        # Apply default values for missing keys:
+        FieldTransformRule(source_key="score", type_cast="FLOAT", default=0.0),
+        
+        # Auto-convert datetime objects or ISO strings into UTC Unix epochs:
+        FieldTransformRule(source_key="created_at", target_key="createdAt", type_cast="EPOCH"),
+        
+        # Convert datetime objects/strings using explicit date formats:
+        FieldTransformRule(
+            source_key="birthday", 
+            type_cast="DATE", 
+            date_format="%d-%m-%Y",      # how to parse the string (defaults to ISO)
+            target_date_format="%Y-%m-%d" # how to output the string
+        ),
+        
+        # Apply text casing (UPPER, LOWER, TITLE):
+        FieldTransformRule(source_key="status", value_casing="UPPER"),
+    ],
+    # Whether to keep fields not listed in rules above (default: True)
+    include_unmapped=True
+)
+
+transformer = ResponseTransformer(config)
+
+# Transform the previously parsed `results`
+transformed_results = transformer.transform(results)
+```
+
+### 5. Configure Logging
 
 The library uses Python's standard `logging` module and automatically inherits the logging configuration from your application:
 

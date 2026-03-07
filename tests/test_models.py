@@ -8,11 +8,70 @@ from pydantic import ValidationError
 from src.es_query_gen.models import (
     AggregationRule,
     EqualsFilter,
+    FullTextFilter,
     QueryConfig,
     RangeFilter,
     SearchFilter,
     sortModel,
 )
+
+
+class TestFullTextFilter:
+    """Test cases for FullTextFilter model."""
+
+    def test_match_defaults(self):
+        """Test FullTextFilter defaults to match type."""
+        ft = FullTextFilter(field="description", query="fast delivery")
+        assert ft.field == "description"
+        assert ft.query == "fast delivery"
+        assert ft.textFilterType == "match"
+        assert ft.operator is None
+        assert ft.minimum_should_match is None
+
+    def test_match_with_and_operator(self):
+        """Test FullTextFilter match with AND operator."""
+        ft = FullTextFilter(field="title", query="red shoes", operator="and")
+        assert ft.operator == "and"
+        assert ft.textFilterType == "match"
+
+    def test_match_with_or_operator(self):
+        """Test FullTextFilter match with OR operator."""
+        ft = FullTextFilter(field="title", query="red shoes", operator="or")
+        assert ft.operator == "or"
+
+    def test_match_with_minimum_should_match_int(self):
+        """Test FullTextFilter match with minimum_should_match as int."""
+        ft = FullTextFilter(field="body", query="a b c d", minimum_should_match=2)
+        assert ft.minimum_should_match == 2
+
+    def test_match_with_minimum_should_match_percentage(self):
+        """Test FullTextFilter match with minimum_should_match as percentage string."""
+        ft = FullTextFilter(field="body", query="a b c d", minimum_should_match="75%")
+        assert ft.minimum_should_match == "75%"
+
+    def test_match_phrase(self):
+        """Test FullTextFilter with match_phrase type."""
+        ft = FullTextFilter(field="address", query="Baker Street", textFilterType="match_phrase")
+        assert ft.textFilterType == "match_phrase"
+        assert ft.field == "address"
+        assert ft.query == "Baker Street"
+
+    def test_match_phrase_rejects_operator(self):
+        """Test that match_phrase raises when operator is set."""
+        with pytest.raises(ValidationError) as exc_info:
+            FullTextFilter(field="title", query="foo", textFilterType="match_phrase", operator="and")
+        assert "operator" in str(exc_info.value)
+
+    def test_match_phrase_rejects_minimum_should_match(self):
+        """Test that match_phrase raises when minimum_should_match is set."""
+        with pytest.raises(ValidationError) as exc_info:
+            FullTextFilter(field="title", query="foo", textFilterType="match_phrase", minimum_should_match=2)
+        assert "minimum_should_match" in str(exc_info.value)
+
+    def test_invalid_type(self):
+        """Test FullTextFilter raises on unsupported type."""
+        with pytest.raises(ValidationError):
+            FullTextFilter(field="title", query="foo", textFilterType="wildcard")
 
 
 class TestEqualsFilter:
@@ -109,16 +168,38 @@ class TestRangeFilter:
             )
         assert "dateFormat must be provided" in str(exc_info.value)
 
-    def test_range_filter_date_with_non_dict_value(self):
-        """Test RangeFilter raises error when date rangeType gets non-dict value."""
+    def test_range_filter_date_with_absolute_string(self):
+        """Test RangeFilter accepts absolute date strings for date rangeType."""
+        filter_obj = RangeFilter(
+            field="created_at",
+            gte="2024-01-01",
+            lte="2024-12-31",
+            rangeType="date",
+        )
+        # String values should pass through unchanged
+        assert filter_obj.gte == "2024-01-01"
+        assert filter_obj.lte == "2024-12-31"
+
+    def test_range_filter_date_open_ended_absolute(self):
+        """Test RangeFilter with only one absolute date bound."""
+        filter_obj = RangeFilter(
+            field="published_at",
+            gte="2023-06-01",
+            rangeType="date",
+        )
+        assert filter_obj.gte == "2023-06-01"
+        assert filter_obj.lte is None
+
+    def test_range_filter_date_with_invalid_value_type(self):
+        """Test RangeFilter raises for non-string, non-dict date values (e.g. int)."""
         with pytest.raises(ValidationError) as exc_info:
             RangeFilter(
                 field="created_at",
-                gte="2024-01-01",
+                gte=20240101,  # int is not valid for date rangeType
                 rangeType="date",
                 dateFormat="%Y-%m-%d",
             )
-        assert "relative date offsets" in str(exc_info.value)
+        assert "relative offset dict" in str(exc_info.value)
 
     def test_range_filter_no_operators(self):
         """Test RangeFilter raises error when no operators are provided."""
