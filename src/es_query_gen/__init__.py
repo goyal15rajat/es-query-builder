@@ -29,6 +29,7 @@ from .es_utils.connection import (
 )
 from .es_utils.schema_validator import validate_index
 from .parser import ESResponseParser
+from .transformer import FieldTransformRule, ResponseTransformer, TransformConfig
 
 __all__ = [
     # Main classes
@@ -59,6 +60,10 @@ __all__ = [
     "ping_async",
     # Schema validation
     "validate_index",
+    # Transformer
+    "FieldTransformRule",
+    "ResponseTransformer",
+    "TransformConfig",
 ]
 
 # Add NullHandler to prevent "No handler found" warnings if the consuming

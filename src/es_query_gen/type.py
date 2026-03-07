@@ -1,7 +1,7 @@
 """Public type exports for convenient imports.
 
 Example:
-    from es_query_gen.type import QueryConfig
+    from es_query_gen.type import QueryConfig, TransformConfig, FieldTransformRule
 """
 
 from .models import (
@@ -13,6 +13,7 @@ from .models import (
     SearchFilter,
     sortModel,
 )
+from .transformer import FieldTransformRule, ResponseTransformer, TransformConfig
 
 __all__ = [
     "EqualsFilter",
@@ -22,4 +23,7 @@ __all__ = [
     "SearchFilter",
     "AggregationRule",
     "QueryConfig",
+    "FieldTransformRule",
+    "TransformConfig",
+    "ResponseTransformer",
 ]
