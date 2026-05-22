@@ -11,14 +11,14 @@ class EqualsFilter(BaseModel):
 
     Attributes:
         field (str): The field to apply the filter on.
-        value (Union[str, int, float, bool, list]): The value to compare against.
+        value (Union[str, int, float, bool, List[Union[str, int, float, bool]]]): The value to compare against.
 
     Example:
         filter = EqualsFilter(field='status', value='active')
     """
 
     field: str
-    value: Union[str, int, float, bool, list]
+    value: Union[str, int, float, bool, List[Union[str, int, float, bool]]]
 
 
 class RangeFilter(BaseModel):
@@ -193,26 +193,71 @@ class AggregationRule(BaseModel):
 
     Attributes:
         name (str): The name of the aggregation.
-        aggType (Literal['terms']): The type of aggregation (currently only 'terms' is supported).
+        aggType (Literal['terms', 'date_histogram', 'histogram']): The type of aggregation.
         field (str): The field to aggregate on.
-        size (int): Maximum number of aggregation buckets to return (1-500, default: 1).
-        order (Optional[Literal['asc', 'desc']]): Sort order for aggregation buckets (default: None).
+        size (int): Maximum number of buckets to return for ``terms`` (1-500, default: 1).
+        order (Optional[Literal['asc', 'desc']]): Sort order for ``terms`` buckets (default: None).
+        calendar_interval (Optional[str]): Date interval for ``date_histogram``
+            (e.g. ``'1d'``, ``'1w'``, ``'1M'``, ``'1y'``). Required when ``aggType='date_histogram'``
+            unless ``fixed_interval`` is provided.
+        fixed_interval (Optional[str]): Fixed-length interval for ``date_histogram``
+            (e.g. ``'1h'``, ``'30m'``). Mutually exclusive with ``calendar_interval``.
+        date_format (Optional[str]): Output date format for ``date_histogram`` bucket keys
+            (e.g. ``'yyyy-MM-dd'``).
+        time_zone (Optional[str]): Timezone for ``date_histogram`` bucketing
+            (e.g. ``'America/New_York'``).
+        interval (Optional[float]): Bucket width for ``histogram``. Required when
+            ``aggType='histogram'``.
+        min_doc_count (Optional[int]): Minimum document count for a bucket to be included
+            in results. Applies to ``date_histogram`` and ``histogram``.
 
-    Example:
-        agg = AggregationRule(
-            name='by_category',
-            aggType='terms',
-            field='category.keyword',
-            size=10,
-            order='desc'
+    Examples:
+        # Terms aggregation
+        AggregationRule(name='by_category', aggType='terms', field='category.keyword', size=10)
+
+        # Date histogram — daily buckets
+        AggregationRule(
+            name='by_day',
+            aggType='date_histogram',
+            field='created_at',
+            calendar_interval='1d',
+            date_format='yyyy-MM-dd',
         )
+
+        # Numeric histogram — buckets of width 10
+        AggregationRule(name='by_score', aggType='histogram', field='score', interval=10)
     """
 
     name: str
-    aggType: Literal["terms"] = "terms"
+    aggType: Literal["terms", "date_histogram", "histogram"] = "terms"
     field: str
+    # terms parameters
     size: int = Field(default=1, ge=1, le=500)
     order: Optional[Literal["asc", "desc"]] = None
+    # date_histogram parameters
+    calendar_interval: Optional[str] = None
+    fixed_interval: Optional[str] = None
+    date_format: Optional[str] = None
+    time_zone: Optional[str] = None
+    # shared bucket parameters
+    min_doc_count: Optional[int] = Field(default=None, ge=0)
+    # histogram parameters
+    interval: Optional[float] = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def validate_agg_type_params(self) -> "AggregationRule":
+        """Ensure required parameters are present for each aggregation type."""
+        if self.aggType == "date_histogram":
+            if not self.calendar_interval and not self.fixed_interval:
+                raise ValueError(
+                    "date_histogram requires 'calendar_interval' (e.g. '1d') or 'fixed_interval' (e.g. '1h')"
+                )
+            if self.calendar_interval and self.fixed_interval:
+                raise ValueError("date_histogram accepts 'calendar_interval' or 'fixed_interval', not both")
+        elif self.aggType == "histogram":
+            if self.interval is None:
+                raise ValueError("histogram requires 'interval' (bucket width, e.g. 10.0)")
+        return self
 
 
 class QueryConfig(BaseModel):

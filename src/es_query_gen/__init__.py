@@ -24,6 +24,8 @@ from .es_utils.connection import (
     get_index_settings_async,
     ping,
     ping_async,
+    search_paginated,
+    search_paginated_async,
     set_es_client,
     set_es_client_async,
 )
@@ -41,6 +43,8 @@ __all__ = [
     "connect_es_async",
     "es_search",
     "es_search_async",
+    "search_paginated",
+    "search_paginated_async",
     "get_es_version",
     "get_index_schema",
     "get_index_schema_async",
