@@ -155,7 +155,14 @@ class ESResponseParser:
                 return
 
             for data_obj in bucket_item_list:
-                hits_list = data_obj["top_hits_bucket"]["hits"]["hits"]
+                if "top_hits_bucket" not in data_obj:
+                    logger.warning(
+                        "Bucket in '%s' is missing 'top_hits_bucket' — skipping. "
+                        "Ensure the aggregation includes a top_hits sub-aggregation.",
+                        aggs_bucket_name,
+                    )
+                    continue
+                hits_list = data_obj["top_hits_bucket"].get("hits", {}).get("hits", [])
                 for each_obj in hits_list:
                     source = each_obj.get("_source", {})
                     doc = dict(source)

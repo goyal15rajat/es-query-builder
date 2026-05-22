@@ -11,6 +11,7 @@ from elasticsearch.exceptions import ConnectionTimeout as ESTimeoutError
 from elasticsearch.exceptions import NotFoundError
 from elasticsearch.exceptions import RequestError
 from elasticsearch.exceptions import RequestError as BadRequestError
+from elasticsearch.exceptions import TransportError
 
 logger = logging.getLogger(__name__)
 
@@ -500,8 +501,8 @@ def get_index_schema(index: str, es: Optional[Elasticsearch] = None) -> Dict[str
         NotFoundError: If the index does not exist.
     """
 
-    es_mapping = get_index_mapping(index=index, es=es)
-    es_settings = get_index_settings(index=index, es=es)
+    es_mapping = es.indices.get_mapping(index=index)
+    es_settings = es.indices.get_settings(index=index)
 
     return {index: {**es_mapping[index], **es_settings[index]} for index in es_mapping.keys()}
 
@@ -590,43 +591,53 @@ def es_search(
     if query is None:
         query = {"match_all": {}}
 
-    logger.debug(f"Searching index '{index}' from offset {from_} with query: {query}")
+    logger.info(f"Searching index '{index}' from offset {from_} with query: {query}")
     last_exception: Optional[Exception] = None
     start_time = time.perf_counter()
 
     for attempt in range(max_retries):
         try:
-            try:
-                response = es.search(
-                    index=index,
-                    body=query,
-                    from_=from_,
-                    request_timeout=timeout,
-                )
-            finally:
-                elapsed = (time.perf_counter() - start_time) * 1000
-                logger.info(f"Search completed in {elapsed:.2f}ms (index='{index}', from={from_}, query={query})")
+            response = es.search(
+                index=index,
+                body=query,
+                from_=from_,
+                request_timeout=timeout,
+            )
+            elapsed = (time.perf_counter() - start_time) * 1000
+            logger.info(f"Search completed in {elapsed:.2f}ms (index='{index}', from={from_}, query={query})")
             return response
         except NotFoundError:
-            logger.error(f"Index '{index}' not found")
+            logger.error(f"Index '{index}' not found (query={query})")
             raise
         except BadRequestError as e:
-            logger.error(f"Malformed query: {e}")
+            logger.error(f"Malformed query: {e} (query={query})")
             raise
         except (ESTimeoutError, ESConnectionError) as e:
             last_exception = e
             if attempt < max_retries - 1:
                 backoff = retry_delay * (2**attempt)
-                logger.warning(f"Search failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {backoff}s...")
+                logger.warning(
+                    f"Search failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {backoff}s... (query={query})"
+                )
                 time.sleep(backoff)
             continue
-        except RequestError as e:
-            logger.error(f"Elasticsearch request error: {e}")
+        except TransportError as e:
+            status_code = getattr(e, "status_code", None)
+            if isinstance(status_code, int) and status_code >= 500 and status_code != 501:
+                last_exception = e
+                if attempt < max_retries - 1:
+                    backoff = retry_delay * (2**attempt)
+                    logger.warning(
+                        f"Transient server error {status_code} (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {backoff}s... (query={query})"
+                    )
+                    time.sleep(backoff)
+                continue
+            logger.error(f"Elasticsearch request error: {e} (query={query})")
             raise
 
     # All retries exhausted
     if last_exception:
-        logger.error(f"Search failed after {max_retries} attempts: {last_exception}")
+        logger.error(f"Search failed after {max_retries} attempts: {last_exception} (query={query})")
         raise last_exception
     # Fallback (shouldn't reach here)
     raise RuntimeError("Search failed after all retries")
@@ -785,46 +796,191 @@ async def es_search_async(
     if query is None:
         query = {"match_all": {}}
 
-    logger.debug(f"Searching index '{index}' (async) from offset {from_} with query: {query}")
+    logger.info(f"Searching index '{index}' (async) from offset {from_} with query: {query}")
     last_exception = None
     start_time = time.perf_counter()
 
     for attempt in range(max_retries):
         try:
-            try:
-                response = await es.search(
-                    index=index,
-                    body=query,
-                    from_=from_,
-                    request_timeout=timeout,
-                )
-            finally:
-                elapsed = (time.perf_counter() - start_time) * 1000
-                logger.info(
-                    f"Search (async) completed in {elapsed:.2f}ms (index='{index}', from={from_}, query={query})"
-                )
+            response = await es.search(
+                index=index,
+                body=query,
+                from_=from_,
+                request_timeout=timeout,
+            )
+            elapsed = (time.perf_counter() - start_time) * 1000
+            logger.info(f"Search (async) completed in {elapsed:.2f}ms (index='{index}', from={from_}, query={query})")
             return response
         except NotFoundError:
-            logger.error(f"Index '{index}' not found (async)")
+            logger.error(f"Index '{index}' not found (async) (query={query})")
             raise
         except BadRequestError as e:
-            logger.error(f"Malformed query (async): {e}")
+            logger.error(f"Malformed query (async): {e} (query={query})")
             raise
         except (ESTimeoutError, ESConnectionError) as e:
             last_exception = e
             if attempt < max_retries - 1:
                 backoff = retry_delay * (2**attempt)
                 logger.warning(
-                    f"Async search failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {backoff}s..."
+                    f"Async search failed (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {backoff}s... (query={query})"
                 )
                 await asyncio.sleep(backoff)
             continue
-        except RequestError as e:
-            logger.error(f"Elasticsearch request error (async): {e}")
+        except TransportError as e:
+            status_code = getattr(e, "status_code", None)
+            if isinstance(status_code, int) and status_code >= 500 and status_code != 501:
+                last_exception = e
+                if attempt < max_retries - 1:
+                    backoff = retry_delay * (2**attempt)
+                    logger.warning(
+                        f"Transient server error {status_code} (attempt {attempt + 1}/{max_retries}): {e}. Retrying in {backoff}s... (query={query})"
+                    )
+                    await asyncio.sleep(backoff)
+                continue
+            logger.error(f"Elasticsearch request error (async): {e} (query={query})")
             raise
 
     # All retries exhausted
     if last_exception:
+        logger.error(f"Async search failed after {max_retries} attempts: {last_exception} (query={query})")
         raise last_exception
     # Fallback (shouldn't reach here)
     raise RuntimeError("Async search failed after all retries")
+
+
+@requires_es_client
+def search_paginated(
+    es: Optional[Elasticsearch] = None,
+    index: str = "*",
+    query: Optional[Dict[str, Any]] = None,
+    page_size: int = 100,
+    max_docs: Optional[int] = None,
+    timeout: int = 10,
+    max_retries: int = 3,
+    retry_delay: float = 0.5,
+):
+    """Paginate through Elasticsearch results, yielding one full response dict per page.
+
+    Repeatedly calls ``es_search`` with an increasing ``from_`` offset until there
+    are no more results, the last page is smaller than ``page_size``, or the
+    ``max_docs`` limit is reached.  Each yielded value is the raw ES response dict
+    (same shape as ``es_search`` returns), so you can pass each page directly to
+    ``ESResponseParser``.
+
+    Args:
+        es: Elasticsearch client (auto-injected if not provided).
+        index: Index name or pattern (default: ``"*"``).
+        query: Elasticsearch query dict (default: ``match_all``).
+        page_size: Number of documents per page (default: 100).
+        max_docs: Stop after yielding this many documents in total (default: no limit).
+        timeout: Server-side timeout per request in seconds (default: 10).
+        max_retries: Retry attempts per page request (default: 3).
+        retry_delay: Initial retry backoff in seconds (default: 0.5).
+
+    Yields:
+        Raw Elasticsearch search response dicts, one per page.
+
+    Example::
+
+        for page in search_paginated(index="my_index", query=my_query, page_size=200):
+            docs = ESResponseParser(config).parse_data(page)
+            process(docs)
+    """
+    if query is None:
+        query = {"match_all": {}}
+
+    paginated_query = {**query, "size": page_size}
+    from_ = 0
+    total_yielded = 0
+
+    while True:
+        response = es_search(
+            es=es,
+            index=index,
+            query=paginated_query,
+            from_=from_,
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_delay=retry_delay,
+        )
+        hits = response.get("hits", {}).get("hits", [])
+        if not hits:
+            break
+
+        yield response
+
+        total_yielded += len(hits)
+        if max_docs is not None and total_yielded >= max_docs:
+            break
+        if len(hits) < page_size:
+            break
+
+        from_ += page_size
+
+
+async def search_paginated_async(
+    es: Optional[AsyncElasticsearch] = None,
+    index: str = "*",
+    query: Optional[Dict[str, Any]] = None,
+    page_size: int = 100,
+    max_docs: Optional[int] = None,
+    timeout: int = 10,
+    max_retries: int = 3,
+    retry_delay: float = 0.5,
+):
+    """Async version of ``search_paginated`` — an async generator yielding one page per iteration.
+
+    Args:
+        es: AsyncElasticsearch client (falls back to the registered default if not provided).
+        index: Index name or pattern (default: ``"*"``).
+        query: Elasticsearch query dict (default: ``match_all``).
+        page_size: Number of documents per page (default: 100).
+        max_docs: Stop after yielding this many documents in total (default: no limit).
+        timeout: Server-side timeout per request in seconds (default: 10).
+        max_retries: Retry attempts per page request (default: 3).
+        retry_delay: Initial retry backoff in seconds (default: 0.5).
+
+    Yields:
+        Raw Elasticsearch search response dicts, one per page.
+
+    Example::
+
+        async for page in search_paginated_async(index="my_index", query=my_query):
+            docs = ESResponseParser(config).parse_data(page)
+            await process(docs)
+    """
+    if es is None:
+        es = ESClientSingleton.get_async()
+    if es is None:
+        raise RuntimeError("Async Elasticsearch client not provided and no default is set")
+
+    if query is None:
+        query = {"match_all": {}}
+
+    paginated_query = {**query, "size": page_size}
+    from_ = 0
+    total_yielded = 0
+
+    while True:
+        response = await es_search_async(
+            es=es,
+            index=index,
+            query=paginated_query,
+            from_=from_,
+            timeout=timeout,
+            max_retries=max_retries,
+            retry_delay=retry_delay,
+        )
+        hits = response.get("hits", {}).get("hits", [])
+        if not hits:
+            break
+
+        yield response
+
+        total_yielded += len(hits)
+        if max_docs is not None and total_yielded >= max_docs:
+            break
+        if len(hits) < page_size:
+            break
+
+        from_ += page_size

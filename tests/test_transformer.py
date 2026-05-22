@@ -216,6 +216,13 @@ class TestResponseTransformerDefaults:
         result = ResponseTransformer(cfg).transform([{"count": 0}])
         assert result[0]["count"] == 0
 
+    def test_missing_key_no_default_is_omitted(self):
+        """If a key is missing and has no default, it should be omitted from the output."""
+        cfg = TransformConfig(rules=[FieldTransformRule(source_key="missing", target_key="new_key")])
+        result = ResponseTransformer(cfg).transform([{}])
+        assert "new_key" not in result[0]
+        assert "missing" not in result[0]
+
 
 # ---------------------------------------------------------------------------
 # ResponseTransformer — type casting

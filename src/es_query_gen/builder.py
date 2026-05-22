@@ -225,12 +225,33 @@ class QueryBuilder:
                 aggs_dict: Dict[str, Any] = {"terms": {"field": agg_item.field, "size": agg_item.size}}
                 if agg_item.order:
                     aggs_dict["terms"]["order"] = {"_key": agg_item.order}
+                if agg_item.min_doc_count is not None:
+                    aggs_dict["terms"]["min_doc_count"] = agg_item.min_doc_count
+            elif agg_item.aggType == "date_histogram":
+                dh: Dict[str, Any] = {"field": agg_item.field}
+                if agg_item.calendar_interval:
+                    dh["calendar_interval"] = agg_item.calendar_interval
+                else:
+                    dh["fixed_interval"] = agg_item.fixed_interval
+                if agg_item.date_format:
+                    dh["format"] = agg_item.date_format
+                if agg_item.time_zone:
+                    dh["time_zone"] = agg_item.time_zone
+                if agg_item.min_doc_count is not None:
+                    dh["min_doc_count"] = agg_item.min_doc_count
+                aggs_dict = {"date_histogram": dh}
+            elif agg_item.aggType == "histogram":
+                h: Dict[str, Any] = {"field": agg_item.field, "interval": agg_item.interval}
+                if agg_item.min_doc_count is not None:
+                    h["min_doc_count"] = agg_item.min_doc_count
+                aggs_dict = {"histogram": h}
             pointer["aggs"][agg_item.name] = aggs_dict
             pointer = pointer["aggs"][agg_item.name]
             if i == num_aggs - 1:
-                pointer["aggs"] = {
-                    "top_hits_bucket": {"top_hits": {"size": size, "_source": {"includes": return_fields}}}
-                }
+                top_hits_body: Dict[str, Any] = {"size": size}
+                if return_fields:
+                    top_hits_body["_source"] = {"includes": return_fields}
+                pointer["aggs"] = {"top_hits_bucket": {"top_hits": top_hits_body}}
 
         query["aggs"] = es_aggs["aggs"]
 

@@ -149,6 +149,10 @@ class ResponseTransformer:
         result: Dict[str, Any] = dict(doc) if self.config.include_unmapped else {}
 
         for source_key, rule in self._rules.items():
+            # If source_key is not present in doc and no default is provided, skip it
+            if source_key not in doc and rule.default is None:
+                continue
+
             raw = doc.get(source_key)
             try:
                 value = rule.default if (raw is None and rule.default is not None) else raw
@@ -196,7 +200,10 @@ class ResponseTransformer:
                     rule.target_key,
                     exc,
                 )
-                # Ensure source_key → raw is in result regardless of include_unmapped mode.
-                result[source_key] = raw
+                # Only restore source_key if it was present in the original doc.
+                # If the rule was triggered solely via rule.default (source_key absent),
+                # inserting source_key=None would silently corrupt the output.
+                if source_key in doc:
+                    result[source_key] = raw
 
         return result
